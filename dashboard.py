@@ -288,7 +288,7 @@ with st.sidebar:
         save_collection_sizes(sizes_to_collect)
     except OSError as error:
         st.error(f"Could not save collection sizes: {error}")
-    if len(sizes_to_collect) > 3:
+    if len(sizes_to_collect) > 5:
         st.warning(
             "Larger collection requests make more page requests and increase "
             "the risk of the source blocking further requests."
