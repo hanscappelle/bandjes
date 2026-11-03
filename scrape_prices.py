@@ -3,36 +3,27 @@
 
 import argparse
 import csv
-from datetime import date
+from contextlib import nullcontext
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from html.parser import HTMLParser
 from pathlib import Path
-import re
 import sqlite3
 import sys
+import tempfile
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urljoin
 from urllib.request import Request, urlopen
 
+from tyre_sizes import SIZE_PATTERN, normalize_size
+
 
 BASE_URL = "https://www.bandenleader.be/"
-SIZE_PATTERN = re.compile(
-    r"(?P<width>\d{2,3})\s*/\s*(?P<aspect>\d{2,3})"
-    r"\s*(?:-|/|\s)?\s*(?:ZR|VB|R|B)?\s*(?P<rim>\d{2})",
-    re.IGNORECASE,
-)
 VOID_TAGS = {
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
     "meta", "param", "source", "track", "wbr",
 }
-
-
-def normalize_size(value):
-    match = SIZE_PATTERN.fullmatch(value.strip())
-    if not match:
-        raise ValueError(f"Invalid tyre size: {value!r} (expected e.g. 90/90-21)")
-    return "{width}/{aspect}-{rim}".format(**match.groupdict())
 
 
 class ListingParser(HTMLParser):
@@ -150,27 +141,119 @@ def fetch_listing(url, timeout):
         raise RuntimeError(f"Could not fetch {url}: {error.reason}") from error
 
 
-def scrape_size(size, max_pages, delay, timeout):
+class FirefoxFetcher:
+    def __init__(self, profile_path, timeout):
+        profile_path = Path(profile_path).expanduser().resolve()
+        if not profile_path.is_dir() or not (profile_path / "prefs.js").is_file():
+            raise RuntimeError(
+                f"Firefox profile must be an existing profile directory containing prefs.js: "
+                f"{profile_path}"
+            )
+
+        try:
+            from selenium import webdriver
+            from selenium.common.exceptions import WebDriverException
+            from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
+            from selenium.webdriver.firefox.options import Options
+            from selenium.webdriver.firefox.service import Service
+        except ImportError as error:
+            raise RuntimeError(
+                "Firefox collection requires Selenium. Install dependencies with "
+                "`python3 -m pip install -r requirements.txt`."
+            ) from error
+
+        options = Options()
+        options.profile = FirefoxProfile(str(profile_path))
+        self._log_directory = tempfile.TemporaryDirectory(
+            prefix="tyre-price-firefox-"
+        )
+        log_path = Path(self._log_directory.name) / "geckodriver.log"
+        service = Service(log_output=str(log_path))
+        self.driver = None
+        try:
+            self.driver = webdriver.Firefox(options=options, service=service)
+            self.driver.set_page_load_timeout(timeout)
+        except WebDriverException as error:
+            shutdown_error = ""
+            if self.driver is not None:
+                try:
+                    self.driver.quit()
+                except WebDriverException as quit_error:
+                    shutdown_error = f"\nFirefox shutdown error: {quit_error}"
+            log_tail = ""
+            if log_path.is_file():
+                log_tail = "\n".join(
+                    log_path.read_text(errors="replace").splitlines()[-30:]
+                )
+            self._log_directory.cleanup()
+            diagnostic = f"\nFirefox startup log:\n{log_tail}" if log_tail else ""
+            raise RuntimeError(
+                "Could not start Firefox with the selected profile. Verify the profile "
+                "folder is a Firefox Root Directory and try a fresh dedicated profile "
+                "with the VPN extension installed. "
+                f"Details: {error}{shutdown_error}{diagnostic}"
+            ) from error
+
+    def fetch(self, url, timeout):
+        from selenium.common.exceptions import TimeoutException, WebDriverException
+
+        try:
+            self.driver.get(url)
+            page = self.driver.page_source
+        except TimeoutException as error:
+            raise RuntimeError(
+                f"Firefox timed out loading {url}; stopping without retrying."
+            ) from error
+        except WebDriverException as error:
+            raise RuntimeError(f"Firefox could not load {url}: {error}") from error
+
+        lowered_page = page.lower()
+        if any(
+            marker in lowered_page
+            for marker in ("access denied", "too many requests", "verify you are human")
+        ):
+            raise RuntimeError(
+                "Firefox received a block or verification page; stopping without retrying."
+            )
+        return page
+
+    def close(self):
+        try:
+            self.driver.quit()
+        finally:
+            self._log_directory.cleanup()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
+
+def scrape_size(size, max_pages, delay, timeout, fetch_page=fetch_listing):
     width, remainder = size.split("/")
-    aspect, rim = remainder.split("-")
+    aspect, rim = remainder.split("R")
     url = f"{BASE_URL}motor-band-{width}-{aspect}-{rim}/"
     seen_urls = set()
     products = []
     truncated = False
+    page_count = 0
 
-    for page_number in range(max_pages):
+    while True:
         if url in seen_urls:
             raise RuntimeError(f"Repeated pagination URL while scraping {size}: {url}")
         seen_urls.add(url)
 
         parser = ListingParser()
-        parser.feed(fetch_listing(url, timeout))
+        parser.feed(fetch_page(url, timeout))
+        page_count += 1
         page_products = [
             product
             for product in parser.products
             if normalize_size(product["size"]) == size
         ]
         for product in page_products:
+            product["size"] = normalize_size(product["size"])
             product["url"] = quote(
                 urljoin(BASE_URL, product["url"]),
                 safe=":/?&=%#",
@@ -180,7 +263,7 @@ def scrape_size(size, max_pages, delay, timeout):
         next_page = urljoin(url, parser.next_page) if parser.next_page else None
         if not next_page:
             break
-        if page_number + 1 == max_pages:
+        if max_pages is not None and page_count >= max_pages:
             truncated = True
             break
         if delay:
@@ -194,31 +277,74 @@ def scrape_size(size, max_pages, delay, timeout):
     for product in products:
         if not product["id"]:
             raise RuntimeError(f"Product is missing its stable listing ID: {product['url']}")
-    return products, truncated
+    return products, page_count, truncated
 
 
 def initialize_database(connection):
-    connection.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS products (
+    with connection:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS products (
             product_id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             size TEXT NOT NULL,
             url TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS price_observations (
-            observed_on TEXT NOT NULL,
-            product_id TEXT NOT NULL REFERENCES products(product_id),
-            price_eur NUMERIC NOT NULL,
-            PRIMARY KEY (observed_on, product_id)
-        );
-        CREATE INDEX IF NOT EXISTS price_observations_by_product
-            ON price_observations(product_id, observed_on);
-        """
-    )
+            )
+            """
+        )
+
+        columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(price_observations)")
+        }
+        if not columns:
+            connection.execute(
+                """
+                CREATE TABLE price_observations (
+                    observed_at TEXT NOT NULL,
+                    product_id TEXT NOT NULL REFERENCES products(product_id),
+                    price_eur NUMERIC NOT NULL,
+                    PRIMARY KEY (observed_at, product_id)
+                )
+                """
+            )
+        elif "observed_at" not in columns:
+            if "observed_on" not in columns:
+                raise sqlite3.DatabaseError(
+                    "price_observations has neither observed_at nor observed_on."
+                )
+            connection.execute("DROP INDEX IF EXISTS price_observations_by_product")
+            connection.execute(
+                "ALTER TABLE price_observations RENAME TO price_observations_legacy"
+            )
+            connection.execute(
+                """
+                CREATE TABLE price_observations (
+                    observed_at TEXT NOT NULL,
+                    product_id TEXT NOT NULL REFERENCES products(product_id),
+                    price_eur NUMERIC NOT NULL,
+                    PRIMARY KEY (observed_at, product_id)
+                )
+                """
+            )
+            connection.execute(
+                """
+                INSERT INTO price_observations (observed_at, product_id, price_eur)
+                SELECT observed_on || 'T00:00:00', product_id, price_eur
+                FROM price_observations_legacy
+                """
+            )
+            connection.execute("DROP TABLE price_observations_legacy")
+
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS price_observations_by_product
+            ON price_observations(product_id, observed_at)
+            """
+        )
 
 
-def save_observations(connection, observed_on, products):
+def save_observations(connection, observed_at, products):
     with connection:
         for product in products:
             connection.execute(
@@ -232,12 +358,12 @@ def save_observations(connection, observed_on, products):
             )
             connection.execute(
                 """
-                INSERT INTO price_observations (observed_on, product_id, price_eur)
+                INSERT INTO price_observations (observed_at, product_id, price_eur)
                 VALUES (?, ?, ?)
-                ON CONFLICT(observed_on, product_id)
+                ON CONFLICT(observed_at, product_id)
                 DO UPDATE SET price_eur = excluded.price_eur
                 """,
-                (observed_on, product["id"], str(product["price"])),
+                (observed_at, product["id"], str(product["price"])),
             )
 
 
@@ -249,7 +375,7 @@ def main():
         nargs="+",
         required=True,
         metavar="SIZE",
-        help="1-4 sizes from common_motorcycle_tyre_sizes.csv (e.g. 90/90-21)",
+        help="1-4 sizes from common_motorcycle_tyre_sizes.csv (e.g. 90/90R21)",
     )
     argument_parser.add_argument(
         "--database",
@@ -266,8 +392,10 @@ def main():
     argument_parser.add_argument(
         "--max-pages",
         type=int,
-        default=2,
-        help="maximum listing pages per size (default: 2; maximum: 10)",
+        help=(
+            "optional maximum listing pages per size; by default, follow pagination "
+            "until no next page is available"
+        ),
     )
     argument_parser.add_argument(
         "--timeout",
@@ -275,15 +403,37 @@ def main():
         default=20,
         help="request timeout in seconds (default: 20)",
     )
+    argument_parser.add_argument(
+        "--firefox-profile",
+        type=Path,
+        help=(
+            "use Firefox with this configured profile (for example one with a VPN extension); "
+            "direct HTTP is used when omitted"
+        ),
+    )
+    argument_parser.add_argument(
+        "--vpn-wait",
+        type=int,
+        default=0,
+        metavar="SECONDS",
+        help=(
+            "wait this long after Firefox starts before the first request, "
+            "so you can connect the VPN manually"
+        ),
+    )
     args = argument_parser.parse_args()
 
     try:
         if not 1 <= len(args.sizes) <= 4:
             raise ValueError("Select between one and four sizes per run.")
-        if not 1 <= args.max_pages <= 10:
-            raise ValueError("--max-pages must be between 1 and 10.")
+        if args.max_pages is not None and args.max_pages < 1:
+            raise ValueError("--max-pages must be at least 1 when provided.")
         if args.delay < 0 or args.timeout <= 0:
             raise ValueError("--delay cannot be negative and --timeout must be positive.")
+        if not 0 <= args.vpn_wait <= 300:
+            raise ValueError("--vpn-wait must be between 0 and 300 seconds.")
+        if args.vpn_wait and not args.firefox_profile:
+            raise ValueError("--vpn-wait requires --firefox-profile.")
         sizes = [normalize_size(size) for size in args.sizes]
         if len(set(sizes)) != len(sizes):
             raise ValueError("Each selected size must be unique.")
@@ -294,25 +444,43 @@ def main():
                 "Not in common_motorcycle_tyre_sizes.csv: " + ", ".join(unknown_sizes)
             )
 
-        all_products = []
-        for index, size in enumerate(sizes):
-            products, truncated = scrape_size(
-                size, args.max_pages, args.delay, args.timeout
-            )
-            all_products.extend(products)
-            print(f"{size}: collected {len(products)} tyre prices")
-            if truncated:
+        browser = (
+            FirefoxFetcher(args.firefox_profile, args.timeout)
+            if args.firefox_profile
+            else nullcontext(None)
+        )
+        with browser as firefox:
+            fetch_page = firefox.fetch if firefox else fetch_listing
+            if firefox and args.vpn_wait:
                 print(
-                    f"Warning: {size} reached --max-pages; some listing results may be missing.",
-                    file=sys.stderr,
+                    f"Firefox is open. Connect the VPN within {args.vpn_wait} seconds; "
+                    "the first price request will wait."
                 )
-            if index + 1 < len(sizes) and args.delay:
-                time.sleep(args.delay)
+                time.sleep(args.vpn_wait)
+            all_products = []
+            for index, size in enumerate(sizes):
+                products, page_count, truncated = scrape_size(
+                    size, args.max_pages, args.delay, args.timeout, fetch_page
+                )
+                all_products.extend(products)
+                print(
+                    f"{size}: collected {len(products)} tyre prices "
+                    f"from {page_count} page(s)"
+                )
+                if truncated:
+                    print(
+                        f"Warning: {size} reached --max-pages; "
+                        "some listing results may be missing.",
+                        file=sys.stderr,
+                    )
+                if index + 1 < len(sizes) and args.delay:
+                    time.sleep(args.delay)
 
         args.database.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(args.database) as connection:
             initialize_database(connection)
-            save_observations(connection, date.today().isoformat(), all_products)
+            observed_at = datetime.now().isoformat(timespec="seconds")
+            save_observations(connection, observed_at, all_products)
         print(f"Saved {len(all_products)} observations to {args.database}")
     except (OSError, sqlite3.Error, RuntimeError, ValueError) as error:
         print(f"Error: {error}", file=sys.stderr)
