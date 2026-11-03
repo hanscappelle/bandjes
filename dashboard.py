@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent
 DATABASE = Path(os.environ.get("TYRE_PRICE_DB", ROOT / "tyre_prices.sqlite3")).expanduser()
 
 st.set_page_config(
-    page_title="Motorcycle tyre price watch",
+    page_title="Motorcycle Tyre Price Watch",
     page_icon="🏍️",
     layout="wide",
 )
@@ -197,7 +197,7 @@ def load_size_history(connection, size):
     return history[history["size"] == size]
 
 
-st.title("🏍️ Motorcycle tyre price watch")
+st.title("🏍️ Motorcycle Tyre Price Watch")
 st.caption("Daily price history collected from Bandenleader.be")
 
 try:
@@ -225,7 +225,7 @@ except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
     st.error(f"Could not read saved collection sizes: {error}")
 
 with st.sidebar:
-    st.header("Collect prices")
+    st.header("Collect Prices")
     connection_mode = st.radio(
         "Connection",
         ["Firefox VPN profile", "Direct HTTP"],
@@ -390,7 +390,7 @@ try:
 
     with st.sidebar:
         st.divider()
-        st.header("Price history")
+        st.header("Price History")
         selected_size = st.selectbox("Tyre size", sizes)
         period = st.selectbox(
             "History period",
@@ -408,7 +408,7 @@ except (sqlite3.Error, pd.errors.DatabaseError, ValueError) as error:
 finally:
     connection.close()
 
-st.header(f"Selected tyre size: {selected_size}")
+st.header(f"Selected Tyre Size: {selected_size}")
 
 if history.empty:
     st.info(f"No price observations found for {selected_size}.")
@@ -462,7 +462,7 @@ st.caption(
     "the timestamp column shows when it was last seen."
 )
 
-st.subheader("Latest recorded prices")
+st.subheader("Latest Recorded Prices")
 st.caption("Toggle Favorite in the table to save or remove a tyre from your favorites.")
 table = latest[
     ["product_id", "name", "size", "price_eur", "observed_at", "url"]
@@ -505,7 +505,7 @@ if favorites_changed:
         favorites_by_size = updated_favorites
         saved_favorites = table_favorites
 
-st.subheader("Price history")
+st.subheader("Price History")
 comparison_products = saved_favorites
 
 if period != "All history":
