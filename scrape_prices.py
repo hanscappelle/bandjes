@@ -375,7 +375,7 @@ def main():
         nargs="+",
         required=True,
         metavar="SIZE",
-        help="1-4 sizes from common_motorcycle_tyre_sizes.csv (e.g. 90/90R21)",
+        help="one or more sizes from common_motorcycle_tyre_sizes.csv (e.g. 90/90R21)",
     )
     argument_parser.add_argument(
         "--database",
@@ -424,8 +424,6 @@ def main():
     args = argument_parser.parse_args()
 
     try:
-        if not 1 <= len(args.sizes) <= 4:
-            raise ValueError("Select between one and four sizes per run.")
         if args.max_pages is not None and args.max_pages < 1:
             raise ValueError("--max-pages must be at least 1 when provided.")
         if args.delay < 0 or args.timeout <= 0:

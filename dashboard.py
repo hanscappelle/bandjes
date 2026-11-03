@@ -227,10 +227,14 @@ with st.sidebar:
         "Sizes to collect",
         options=list(common_sizes),
         default=["90/90R21", "140/80R18", "150/70R18"],
-        max_selections=4,
         format_func=lambda size: f"{size} ({common_sizes[size]})",
-        help="Choose up to four common tyre sizes to scrape now.",
+        help="Choose any number of common tyre sizes to scrape now.",
     )
+    if len(sizes_to_collect) > 3:
+        st.warning(
+            "Larger collection requests make more page requests and increase "
+            "the risk of the source blocking further requests."
+        )
     run_collection = st.button(
         "Run price collection",
         type="primary",

@@ -13,11 +13,14 @@ Bandenleader is blocking after too many requests, still looking into this.
 
 ## Daily price collection
 
-The standard-library Python script collects prices for one to four sizes from
+The standard-library Python script collects prices for one or more sizes from
 `common_motorcycle_tyre_sizes.csv` and stores daily observations in
 `tyre_prices.sqlite3`. It follows pagination until no next page is available,
 waits five seconds between pages and sizes, and stops without retrying if the
 site returns a blocking or rate-limit response.
+
+There is no fixed size limit per run. Larger collection requests require more
+page requests and increase the risk of the site blocking further requests.
 
 ```sh
 python3 scrape_prices.py --sizes 90/90R21 140/80R18 150/70R18
@@ -80,7 +83,8 @@ python3 -m venv .venv
 The dashboard reads `tyre_prices.sqlite3` next to the script. It shows each
 selected size's latest recorded prices, last-seen date and time, summary figures, and
 selectable per-tyre price trends. Use **Collect prices** in the sidebar to
-choose up to four sizes and manually run the scraper. The default **Firefox VPN
+choose any number of sizes and manually run the scraper. Larger requests
+increase the risk of the source blocking further requests. The default **Firefox VPN
 profile** mode launches a separate automated Firefox session using a copy of
 the selected profile; it does not control your existing Firefox window. The
 profile should be dedicated to scraping, with the VPN extension installed,
