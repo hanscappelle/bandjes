@@ -14,8 +14,8 @@ Bandenleader is blocking after too many requests, still looking into this.
 The standard-library Python script collects prices for one or more sizes from
 `common_motorcycle_tyre_sizes.csv` and stores daily observations in
 `tyre_prices.sqlite3`. It follows pagination until no next page is available,
-waits five seconds between pages and sizes, and stops without retrying if the
-site returns a blocking or rate-limit response.
+waits ten seconds between pages and sizes by default, and stops without retrying
+if the site returns a blocking or rate-limit response.
 
 There is no fixed size limit per run. Larger collection requests require more
 page requests and increase the risk of the site blocking further requests.
@@ -27,8 +27,8 @@ python3 scrape_prices.py --sizes 90/90R21 140/80R18 150/70R18
 Run the command once per day to build the price history. The script discovers
 the number of pages by following each page's next-page link and prints the
 number processed per size. Use `--database PATH` to choose a different
-database, `--delay 10` to wait longer between requests, or `--max-pages 1` to
-intentionally stop after the first page. Size notation is normalized to
+database, `--delay SECONDS` to change the wait between requests, or
+`--max-pages 1` to intentionally stop after the first page. Size notation is normalized to
 `150/70R17`, combining equivalent source formats such as `150/70-17`,
 `150/70 R17`, and `150/70 ZR17` in the dashboard. Each observation is keyed by
 its local collection timestamp and Bandenleader product ID. Existing date-only

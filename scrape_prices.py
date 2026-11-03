@@ -386,8 +386,8 @@ def main():
     argument_parser.add_argument(
         "--delay",
         type=float,
-        default=5,
-        help="seconds between page requests (default: 5; set 0 to disable)",
+        default=10,
+        help="seconds between page requests (default: 10; set 0 to disable)",
     )
     argument_parser.add_argument(
         "--max-pages",
