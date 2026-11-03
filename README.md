@@ -92,6 +92,14 @@ and stops without retrying when the source blocks a request. Both modes save
 to the dashboard's database. Set `FIREFOX_PROFILE` to prefill the profile path
 and `TYRE_PRICE_DB` to use a database at a different path.
 
+Use the **Favorite** checkbox in the **Latest recorded prices** table to quickly
+save or remove a model for the selected size. Favorites are saved immediately
+and automatically selected in **Compare tyres** and included in the
+price-history chart. The comparison also starts with the five most-observed
+other tyres; adjust the selection as needed. Favorite selections are stored locally in
+`favorites.json` under the TyrePriceWatch application settings folder,
+separately from the price database.
+
 On macOS, Firefox profiles are usually stored under
 `~/Library/Application Support/Firefox/Profiles/`. Enter the profile folder
 manually, or set `FIREFOX_PROFILE` to prefill the field. Check **Remember

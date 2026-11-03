@@ -2,6 +2,7 @@
 """Local dashboard for motorcycle tyre price history."""
 
 import csv
+import json
 import os
 from pathlib import Path
 import sqlite3
@@ -61,6 +62,47 @@ def forget_firefox_profile():
     settings_path = firefox_profile_settings_path()
     if settings_path.exists():
         settings_path.unlink()
+
+
+def favorites_settings_path():
+    if sys.platform == "darwin":
+        settings_dir = Path.home() / "Library/Application Support/TyrePriceWatch"
+    else:
+        settings_dir = Path(
+            os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+        ) / "tyre-price-watch"
+    return settings_dir / "favorites.json"
+
+
+def load_favorites():
+    settings_path = favorites_settings_path()
+    if not settings_path.is_file():
+        return {}
+    with settings_path.open(encoding="utf-8") as file:
+        favorites = json.load(file)
+    if not isinstance(favorites, dict) or not all(
+        isinstance(size, str)
+        and isinstance(product_ids, list)
+        and all(isinstance(product_id, str) for product_id in product_ids)
+        for size, product_ids in favorites.items()
+    ):
+        raise ValueError(f"Invalid favorites format in {settings_path}")
+    return favorites
+
+
+def save_favorites(favorites):
+    settings_path = favorites_settings_path()
+    settings_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temporary_path = settings_path.with_suffix(".json.tmp")
+    try:
+        with temporary_path.open("w", encoding="utf-8") as file:
+            json.dump(favorites, file, indent=2, sort_keys=True)
+            file.write("\n")
+        temporary_path.chmod(0o600)
+        temporary_path.replace(settings_path)
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink()
 
 
 def load_common_sizes():
@@ -131,6 +173,12 @@ try:
 except (OSError, UnicodeError) as error:
     remembered_firefox_profile = ""
     st.error(f"Could not read the remembered Firefox profile setting: {error}")
+
+try:
+    favorites_by_size = load_favorites()
+except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+    favorites_by_size = {}
+    st.error(f"Could not read saved tyre favorites: {error}")
 
 with st.sidebar:
     st.header("Collect prices")
@@ -314,6 +362,21 @@ latest = (
     .drop_duplicates("product_id", keep="last")
     .sort_values("price_eur")
 )
+product_stats = (
+    history.groupby(["product_id", "name", "size"], as_index=False)
+    .agg(observations=("observed_at", "nunique"))
+    .sort_values(["observations", "name"], ascending=[False, True])
+)
+product_labels = {
+    row.product_id: f"{row.name} — {row.size} (#{row.product_id})"
+    for row in product_stats.itertuples()
+}
+available_product_ids = product_stats["product_id"].tolist()
+saved_favorites = [
+    product_id
+    for product_id in favorites_by_size.get(selected_size, [])
+    if product_id in available_product_ids
+]
 last_collection = history["observed_at"].max().strftime("%Y-%m-%d %H:%M:%S")
 cheapest = latest.iloc[0]
 median_price = latest["price_eur"].median()
@@ -336,44 +399,75 @@ st.caption(
 )
 
 st.subheader("Latest recorded prices")
-table = latest[["name", "size", "price_eur", "observed_at", "url"]].rename(
+st.caption("Toggle Favorite in the table to save or remove a tyre from your favorites.")
+table = latest[
+    ["product_id", "name", "size", "price_eur", "observed_at", "url"]
+].rename(
     columns={
+        "product_id": "Product ID",
         "name": "Tyre",
         "size": "Size",
         "price_eur": "Price (€)",
         "observed_at": "Last seen",
         "url": "Product page",
     }
-)
-st.dataframe(
+).set_index("Product ID")
+table["Favorite"] = table.index.isin(saved_favorites)
+edited_table = st.data_editor(
     table,
     hide_index=True,
     width="stretch",
+    disabled=["Tyre", "Size", "Price (€)", "Last seen", "Product page"],
     column_config={
+        "Favorite": st.column_config.CheckboxColumn(
+            help="Save this tyre as a favorite for this size."
+        ),
         "Price (€)": st.column_config.NumberColumn(format="€%.2f"),
         "Last seen": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm:ss"),
         "Product page": st.column_config.LinkColumn(display_text="Open"),
     },
+    key=f"latest_favorites_{selected_size}",
 )
+table_favorites = edited_table.index[edited_table["Favorite"]].tolist()
+favorites_changed = set(table_favorites) != set(saved_favorites)
+if favorites_changed:
+    updated_favorites = dict(favorites_by_size)
+    updated_favorites[selected_size] = table_favorites
+    try:
+        save_favorites(updated_favorites)
+    except OSError as error:
+        st.error(f"Could not save tyre favorites: {error}")
+    else:
+        favorites_by_size = updated_favorites
+        saved_favorites = table_favorites
 
 st.subheader("Price history")
-product_stats = (
-    history.groupby(["product_id", "name", "size"], as_index=False)
-        .agg(observations=("observed_at", "nunique"))
-    .sort_values(["observations", "name"], ascending=[False, True])
+available_product_ids = product_stats["product_id"].tolist()
+comparison_key = f"compare_products_{selected_size}"
+default_comparisons = list(saved_favorites) + [
+    product_id
+    for product_id in product_stats["product_id"].head(5).tolist()
+    if product_id not in saved_favorites
+]
+if favorites_changed:
+    current_comparisons = st.session_state.get(
+        comparison_key, default_comparisons
+    )
+    st.session_state[comparison_key] = list(
+        dict.fromkeys(table_favorites + current_comparisons)
+    )
+comparison_widget_options = (
+    {} if comparison_key in st.session_state else {"default": default_comparisons}
 )
-product_labels = {
-    row.product_id: f"{row.name} — {row.size} (#{row.product_id})"
-    for row in product_stats.itertuples()
-}
-default_products = product_stats["product_id"].head(5).tolist()
 selected_products = st.multiselect(
     "Compare tyres",
-    options=product_stats["product_id"].tolist(),
-    default=default_products,
+    options=available_product_ids,
     format_func=lambda product_id: product_labels[product_id],
-    help="Choose tyres to compare. Defaults to the five with the most recorded observations.",
+    key=comparison_key,
+    help="Starts with saved favorites and the five most-observed other tyres. Favorites are always included in the chart.",
+    **comparison_widget_options,
 )
+comparison_products = list(dict.fromkeys(saved_favorites + selected_products))
 
 if period != "All history":
     days = 90 if period == "Last 90 days" else 30
@@ -382,7 +476,9 @@ if period != "All history":
 else:
     chart_history = history
 
-chart_history = chart_history[chart_history["product_id"].isin(selected_products)]
+chart_history = chart_history[
+    chart_history["product_id"].isin(comparison_products)
+]
 if chart_history.empty:
     st.info("Select at least one tyre with observations in the chosen period to show its price history.")
 else:
