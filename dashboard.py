@@ -442,32 +442,7 @@ if favorites_changed:
         saved_favorites = table_favorites
 
 st.subheader("Price history")
-available_product_ids = product_stats["product_id"].tolist()
-comparison_key = f"compare_products_{selected_size}"
-default_comparisons = list(saved_favorites) + [
-    product_id
-    for product_id in product_stats["product_id"].head(5).tolist()
-    if product_id not in saved_favorites
-]
-if favorites_changed:
-    current_comparisons = st.session_state.get(
-        comparison_key, default_comparisons
-    )
-    st.session_state[comparison_key] = list(
-        dict.fromkeys(table_favorites + current_comparisons)
-    )
-comparison_widget_options = (
-    {} if comparison_key in st.session_state else {"default": default_comparisons}
-)
-selected_products = st.multiselect(
-    "Compare tyres",
-    options=available_product_ids,
-    format_func=lambda product_id: product_labels[product_id],
-    key=comparison_key,
-    help="Starts with saved favorites and the five most-observed other tyres. Favorites are always included in the chart.",
-    **comparison_widget_options,
-)
-comparison_products = list(dict.fromkeys(saved_favorites + selected_products))
+comparison_products = saved_favorites
 
 if period != "All history":
     days = 90 if period == "Last 90 days" else 30
@@ -480,7 +455,7 @@ chart_history = chart_history[
     chart_history["product_id"].isin(comparison_products)
 ]
 if chart_history.empty:
-    st.info("Select at least one tyre with observations in the chosen period to show its price history.")
+    st.info("Mark tyres as favorites in the latest recorded prices table to compare their price history.")
 else:
     chart_history = chart_history.assign(
         tyre=chart_history["product_id"].map(product_labels)
