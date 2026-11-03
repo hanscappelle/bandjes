@@ -408,6 +408,8 @@ except (sqlite3.Error, pd.errors.DatabaseError, ValueError) as error:
 finally:
     connection.close()
 
+st.header(f"Selected tyre size: {selected_size}")
+
 if history.empty:
     st.info(f"No price observations found for {selected_size}.")
     st.stop()
