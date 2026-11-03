@@ -198,7 +198,7 @@ def load_size_history(connection, size):
 
 
 st.title("🏍️ Motorcycle Tyre Price Watch")
-st.caption("Daily price history collected from Bandenleader.be")
+st.caption("Dashboard for daily price history collected from Bandenleader.be. THis is just the visualisation of the database. To populate this schedule the script somewhere. You can manually trigger it here. Project details at https://github.com/hanscappelle/bandjes. Add favourites from the results below to show over time and in comparison with each other.")
 
 try:
     common_sizes = load_common_sizes()
@@ -229,6 +229,7 @@ with st.sidebar:
     connection_mode = st.radio(
         "Connection",
         ["Firefox VPN profile", "Direct HTTP"],
+        index=1,
         help=(
             "Firefox mode launches a separate automated Firefox session using a copy "
             "of your configured profile."
