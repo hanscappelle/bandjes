@@ -60,6 +60,58 @@ install or open Firefox from the official Mozilla download and approve it in
 System Settings > Privacy & Security. Do not bypass these protections for an
 untrusted Firefox download.
 
+## Schedule daily collection on Synology DSM
+
+The scheduled collector is a command-line script; the dashboard does not need
+to be running. Install **Python 3** from DSM Package Center, then create a
+persistent folder on a shared volume, for example `/volume1/pricewatch`. Copy
+these three files into it:
+
+- `scrape_prices.py`
+- `tyre_sizes.py`
+- `common_motorcycle_tyre_sizes.csv`
+
+The account used by the scheduled task needs permission to read these files and
+write to the folder. Connect over SSH and check Python's path and version:
+
+```sh
+command -v python3
+python3 --version
+```
+
+Use the full path printed by `command -v` in the task, since DSM scheduled tasks
+may not have the same `PATH` as an interactive shell. Test one small collection
+over SSH first, replacing `/usr/local/bin/python3` if needed:
+
+```sh
+cd /volume1/pricewatch
+/usr/local/bin/python3 scrape_prices.py --sizes 90/90R21 --delay 10 --database /volume1/pricewatch/tyre_prices.sqlite3
+```
+
+If that succeeds, open **Control Panel > Task Scheduler**, create a **Scheduled
+Task > User-defined script**, choose the account that has access to the folder,
+and set the schedule to run daily at a time when the NAS is on and connected to
+the internet. Use this script (again, update the Python path if needed):
+
+```sh
+cd /volume1/pricewatch
+/usr/local/bin/python3 scrape_prices.py --sizes 90/90R21 --delay 10 --database /volume1/pricewatch/tyre_prices.sqlite3 >> /volume1/pricewatch/collection.log 2>&1
+```
+
+Add the sizes you want after `--sizes`; there is no fixed size limit. Each
+selected size is fully paginated by default. Larger requests mean more page
+requests and increase the risk of Bandenleader blocking the NAS. Start with a
+small request and increase the delay if needed; a longer delay does not
+guarantee the site will allow the requests. The script does not automatically
+retry when blocked. Check `collection.log` in File Station or over SSH to see
+the result of each scheduled run. The SQLite database is persistent at the
+specified path; include it in your regular NAS backup.
+
+This command uses the NAS's direct network connection. The Firefox VPN profile
+option requires a graphical Firefox session and is not suitable for a normal
+headless scheduled task. If you need a VPN, configure a supported VPN connection
+for the NAS/network itself and verify it before scheduling.
+
 Example query for a product's price history:
 
 ```sql
@@ -95,6 +147,8 @@ network connection instead. The scraper never silently switches between modes
 and stops without retrying when the source blocks a request. Both modes save
 to the dashboard's database. Set `FIREFOX_PROFILE` to prefill the profile path
 and `TYRE_PRICE_DB` to use a database at a different path.
+The **Sizes to collect** selection is remembered locally between dashboard runs
+in `collection_sizes.json` under the TyrePriceWatch application settings folder.
 
 Use the **Favorite** checkbox in the **Latest recorded prices** table to quickly
 save or remove a model for the selected size. Favorites are saved immediately

@@ -74,6 +74,44 @@ def favorites_settings_path():
     return settings_dir / "favorites.json"
 
 
+def collection_sizes_settings_path():
+    if sys.platform == "darwin":
+        settings_dir = Path.home() / "Library/Application Support/TyrePriceWatch"
+    else:
+        settings_dir = Path(
+            os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+        ) / "tyre-price-watch"
+    return settings_dir / "collection_sizes.json"
+
+
+def load_collection_sizes():
+    settings_path = collection_sizes_settings_path()
+    if not settings_path.is_file():
+        return None
+    with settings_path.open(encoding="utf-8") as file:
+        sizes = json.load(file)
+    if not isinstance(sizes, list) or not all(
+        isinstance(size, str) for size in sizes
+    ):
+        raise ValueError(f"Invalid collection sizes format in {settings_path}")
+    return sizes
+
+
+def save_collection_sizes(sizes):
+    settings_path = collection_sizes_settings_path()
+    settings_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temporary_path = settings_path.with_suffix(".json.tmp")
+    try:
+        with temporary_path.open("w", encoding="utf-8") as file:
+            json.dump(sizes, file, indent=2)
+            file.write("\n")
+        temporary_path.chmod(0o600)
+        temporary_path.replace(settings_path)
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink()
+
+
 def load_favorites():
     settings_path = favorites_settings_path()
     if not settings_path.is_file():
@@ -180,6 +218,12 @@ except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
     favorites_by_size = {}
     st.error(f"Could not read saved tyre favorites: {error}")
 
+try:
+    remembered_collection_sizes = load_collection_sizes()
+except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+    remembered_collection_sizes = None
+    st.error(f"Could not read saved collection sizes: {error}")
+
 with st.sidebar:
     st.header("Collect prices")
     connection_mode = st.radio(
@@ -223,13 +267,27 @@ with st.sidebar:
             ),
         )
 
+    default_collection_sizes = (
+        ["90/90R21", "140/80R18", "150/70R18"]
+        if remembered_collection_sizes is None
+        else [
+            size
+            for size in remembered_collection_sizes
+            if size in common_sizes
+        ]
+    )
     sizes_to_collect = st.multiselect(
         "Sizes to collect",
         options=list(common_sizes),
-        default=["90/90R21", "140/80R18", "150/70R18"],
+        default=default_collection_sizes,
+        key="sizes_to_collect",
         format_func=lambda size: f"{size} ({common_sizes[size]})",
         help="Choose any number of common tyre sizes to scrape now.",
     )
+    try:
+        save_collection_sizes(sizes_to_collect)
+    except OSError as error:
+        st.error(f"Could not save collection sizes: {error}")
     if len(sizes_to_collect) > 3:
         st.warning(
             "Larger collection requests make more page requests and increase "
