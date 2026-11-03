@@ -277,6 +277,19 @@ with st.sidebar:
             if size in common_sizes
         ]
     )
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"] [data-testid="stMultiSelect"]
+        [data-baseweb="select"] > div:first-child {
+            max-height: 280px;
+            overflow-y: auto;
+            align-content: flex-start;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     sizes_to_collect = st.multiselect(
         "Sizes to collect",
         options=list(common_sizes),
@@ -392,7 +405,13 @@ try:
     with st.sidebar:
         st.divider()
         st.header("Price History")
-        selected_size = st.selectbox("Tyre size", sizes)
+        selected_size = st.selectbox(
+            "Tyre size",
+            sizes,
+            format_func=lambda size: (
+                f"{size} ({common_sizes.get(size, 'Position unknown')})"
+            ),
+        )
         period = st.selectbox(
             "History period",
             ["All history", "Last 90 days", "Last 30 days"],
@@ -445,6 +464,8 @@ saved_favorites = [
 last_collection = history["observed_at"].max().strftime("%Y-%m-%d %H:%M:%S")
 cheapest = latest.iloc[0]
 median_price = latest["price_eur"].median()
+oldest_collection = history["observed_at"].min().strftime("%Y-%m-%d")
+latest_collection_date = history["observed_at"].max().strftime("%Y-%m-%d")
 
 metric_columns = st.columns(3)
 metric_columns[0].metric("Tyres with recorded prices", f"{len(latest):,}")
@@ -457,6 +478,10 @@ metric_columns[1].metric(
     ),
 )
 metric_columns[2].metric("Median latest price", f"€{median_price:.2f}")
+st.caption(
+    f"Price collection dates: oldest {oldest_collection}; "
+    f"latest {latest_collection_date}."
+)
 st.caption(
     f"Latest collection for {selected_size}: {last_collection}. "
     "Each listed price is the most recently recorded price for that tyre; "
