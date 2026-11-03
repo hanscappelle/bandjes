@@ -1,11 +1,9 @@
-# pricewatch for motorcycle tyres
+# Pricewatch for Motorcycle Tyres
 
-Using bandenleader.be as a source
+Scripts and Dashboard to collect tyres prices over time for a specific set of tyre sizes. Using bandenleader.be webshop as a, currently single, source. 
 
-Check for example:
-https://www.bandenleader.be/motor-band-150-70-18/
-Optionally add ?p=2 and more for next pages
-the script will automatically traverse pagination
+Check for example: https://www.bandenleader.be/motor-band-150-70-18/
+Optionally add ?p=2 and more for next pages, script will automatically traverse pagination when found. 
 
 # Warning !!
 
