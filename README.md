@@ -130,11 +130,14 @@ python3 -m venv .venv
 .venv/bin/streamlit run dashboard.py
 ```
 
-The dashboard reads `tyre_prices.sqlite3` next to the script. It shows each
+The **Database path** field in the sidebar controls which SQLite database is
+read and collected into; the last entered path is remembered locally between
+dashboard runs. If none has been saved, it defaults to `tyre_prices.sqlite3`
+next to the script, unless `TYRE_PRICE_DB` sets a different initial default. It shows each
 selected size's latest recorded prices, last-seen date and time, summary figures, and
 selectable per-tyre price trends. Use **Collect prices** in the sidebar to
 choose any number of sizes and manually run the scraper. Larger requests
-increase the risk of the source blocking further requests. The default **Firefox VPN
+increase the risk of the source blocking further requests. The **Firefox VPN
 profile** mode launches a separate automated Firefox session using a copy of
 the selected profile; it does not control your existing Firefox window. The
 profile should be dedicated to scraping, with the VPN extension installed,

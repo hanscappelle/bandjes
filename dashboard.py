@@ -27,11 +27,41 @@ st.set_page_config(
 )
 
 
-def open_database():
-    if not DATABASE.is_file():
+def open_database(database_path):
+    if not database_path.is_file():
         return None
-    uri = f"file:{quote(str(DATABASE.resolve()), safe='/')}?mode=ro"
+    uri = f"file:{quote(str(database_path.resolve()), safe='/')}?mode=ro"
     return sqlite3.connect(uri, uri=True)
+
+
+def database_path_settings_path():
+    if sys.platform == "darwin":
+        settings_dir = Path.home() / "Library/Application Support/TyrePriceWatch"
+    else:
+        settings_dir = Path(
+            os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
+        ) / "tyre-price-watch"
+    return settings_dir / "database_path.txt"
+
+
+def load_remembered_database_path():
+    settings_path = database_path_settings_path()
+    if not settings_path.is_file():
+        return ""
+    return settings_path.read_text(encoding="utf-8").strip()
+
+
+def remember_database_path(database_path):
+    settings_path = database_path_settings_path()
+    settings_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temporary_path = settings_path.with_suffix(".txt.tmp")
+    try:
+        temporary_path.write_text(database_path.strip() + "\n", encoding="utf-8")
+        temporary_path.chmod(0o600)
+        temporary_path.replace(settings_path)
+    finally:
+        if temporary_path.exists():
+            temporary_path.unlink()
 
 
 def firefox_profile_settings_path():
@@ -201,6 +231,18 @@ st.title("🏍️ Motorcycle Tyre Price Watch")
 st.caption("Dashboard for daily price history collected from bandenleader.be website (no affiliation). This is just the visualisation of the database. To populate this schedule the script somewhere. You can manually trigger it here for testing purposes. Project details at https://github.com/hanscappelle/bandjes. Add favourites from the results below to show over time and in comparison with each other.")
 
 try:
+    remembered_database_path = load_remembered_database_path()
+except (OSError, UnicodeError) as error:
+    remembered_database_path = ""
+    st.error(f"Could not read the remembered database path: {error}")
+if "database_path" not in st.session_state:
+    st.session_state["database_path"] = remembered_database_path or str(DATABASE)
+if not st.session_state["database_path"].strip():
+    st.session_state["database_path"] = str(DATABASE)
+database_path_text = st.session_state["database_path"].strip()
+database_path = Path(database_path_text).expanduser()
+
+try:
     common_sizes = load_common_sizes()
 except (OSError, KeyError, csv.Error) as error:
     st.error(f"Could not read `common_motorcycle_tyre_sizes.csv`: {error}")
@@ -227,7 +269,7 @@ except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
 selected_size = None
 period = "All history"
 try:
-    selection_connection = open_database()
+    selection_connection = open_database(database_path)
     if selection_connection is None:
         selectable_sizes = []
     else:
@@ -255,7 +297,15 @@ with st.sidebar:
         )
     else:
         st.caption("No recorded tyre sizes yet.")
-    st.caption(f"Database: `{DATABASE}`")
+    st.text_input(
+        "Database path",
+        key="database_path",
+        help="SQLite database file used for price history and collection.",
+    )
+    try:
+        remember_database_path(st.session_state["database_path"])
+    except OSError as error:
+        st.error(f"Could not save the database path setting: {error}")
     st.divider()
     st.header("Collect Prices")
     connection_mode = st.radio(
@@ -352,7 +402,7 @@ if run_collection:
         "--sizes",
         *sizes_to_collect,
         "--database",
-        str(DATABASE.resolve()),
+        str(database_path.resolve()),
     ]
     if connection_mode == "Firefox VPN profile":
         command.extend(
@@ -403,14 +453,14 @@ if run_collection:
             st.code(result.stderr.strip(), language="text")
 
 try:
-    connection = open_database()
+    connection = open_database(database_path)
 except sqlite3.Error as error:
     st.error(f"Could not open the price database: {error}")
     st.stop()
 
 if connection is None:
     st.info(
-        f"No database found at `{DATABASE}` yet. Select sizes under **Collect prices** "
+        f"No database found at `{database_path}` yet. Select sizes under **Collect prices** "
         "and run a collection to create it."
     )
     st.stop()
