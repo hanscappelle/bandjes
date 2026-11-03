@@ -198,7 +198,7 @@ def load_size_history(connection, size):
 
 
 st.title("🏍️ Motorcycle Tyre Price Watch")
-st.caption("Dashboard for daily price history collected from Bandenleader.be. THis is just the visualisation of the database. To populate this schedule the script somewhere. You can manually trigger it here. Project details at https://github.com/hanscappelle/bandjes. Add favourites from the results below to show over time and in comparison with each other.")
+st.caption("Dashboard for daily price history collected from bandenleader.be website (no affiliation). This is just the visualisation of the database. To populate this schedule the script somewhere. You can manually trigger it here for testing purposes. Project details at https://github.com/hanscappelle/bandjes. Add favourites from the results below to show over time and in comparison with each other.")
 
 try:
     common_sizes = load_common_sizes()
@@ -224,7 +224,39 @@ except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
     remembered_collection_sizes = None
     st.error(f"Could not read saved collection sizes: {error}")
 
+selected_size = None
+period = "All history"
+try:
+    selection_connection = open_database()
+    if selection_connection is None:
+        selectable_sizes = []
+    else:
+        try:
+            selectable_sizes = available_sizes(selection_connection)
+        finally:
+            selection_connection.close()
+except (sqlite3.Error, pd.errors.DatabaseError) as error:
+    selectable_sizes = []
+    st.error(f"Could not read tyre sizes for the history selector: {error}")
+
 with st.sidebar:
+    st.header("Price History")
+    if selectable_sizes:
+        selected_size = st.selectbox(
+            "Tyre size",
+            selectable_sizes,
+            format_func=lambda size: (
+                f"{size} ({common_sizes.get(size, 'Position unknown')})"
+            ),
+        )
+        period = st.selectbox(
+            "History period",
+            ["All history", "Last 90 days", "Last 30 days"],
+        )
+    else:
+        st.caption("No recorded tyre sizes yet.")
+    st.caption(f"Database: `{DATABASE}`")
+    st.divider()
     st.header("Collect Prices")
     connection_mode = st.radio(
         "Connection",
@@ -276,19 +308,6 @@ with st.sidebar:
             for size in remembered_collection_sizes
             if size in common_sizes
         ]
-    )
-    st.markdown(
-        """
-        <style>
-        [data-testid="stSidebar"] [data-testid="stMultiSelect"]
-        [data-baseweb="select"] > div:first-child {
-            max-height: 280px;
-            overflow-y: auto;
-            align-content: flex-start;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
     )
     sizes_to_collect = st.multiselect(
         "Sizes to collect",
@@ -401,22 +420,8 @@ try:
     if not sizes:
         st.info("The database has no recorded prices yet. Run a price collection to populate it.")
         st.stop()
-
-    with st.sidebar:
-        st.divider()
-        st.header("Price History")
-        selected_size = st.selectbox(
-            "Tyre size",
-            sizes,
-            format_func=lambda size: (
-                f"{size} ({common_sizes.get(size, 'Position unknown')})"
-            ),
-        )
-        period = st.selectbox(
-            "History period",
-            ["All history", "Last 90 days", "Last 30 days"],
-        )
-        st.caption(f"Database: `{DATABASE}`")
+    if selected_size not in sizes:
+        selected_size = sizes[0]
 
     history = load_size_history(connection, selected_size)
 except (sqlite3.Error, pd.errors.DatabaseError, ValueError) as error:
@@ -488,48 +493,48 @@ st.caption(
     "the timestamp column shows when it was last seen."
 )
 
-st.subheader("Latest Recorded Prices")
-st.caption("Toggle Favorite in the table to save or remove a tyre from your favorites.")
-table = latest[
-    ["product_id", "name", "size", "price_eur", "observed_at", "url"]
-].rename(
-    columns={
-        "product_id": "Product ID",
-        "name": "Tyre",
-        "size": "Size",
-        "price_eur": "Price (€)",
-        "observed_at": "Last seen",
-        "url": "Product page",
-    }
-).set_index("Product ID")
-table["Favorite"] = table.index.isin(saved_favorites)
-edited_table = st.data_editor(
-    table,
-    hide_index=True,
-    width="stretch",
-    disabled=["Tyre", "Size", "Price (€)", "Last seen", "Product page"],
-    column_config={
-        "Favorite": st.column_config.CheckboxColumn(
-            help="Save this tyre as a favorite for this size."
-        ),
-        "Price (€)": st.column_config.NumberColumn(format="€%.2f"),
-        "Last seen": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm:ss"),
-        "Product page": st.column_config.LinkColumn(display_text="Open"),
-    },
-    key=f"latest_favorites_{selected_size}",
-)
-table_favorites = edited_table.index[edited_table["Favorite"]].tolist()
-favorites_changed = set(table_favorites) != set(saved_favorites)
-if favorites_changed:
-    updated_favorites = dict(favorites_by_size)
-    updated_favorites[selected_size] = table_favorites
-    try:
-        save_favorites(updated_favorites)
-    except OSError as error:
-        st.error(f"Could not save tyre favorites: {error}")
-    else:
-        favorites_by_size = updated_favorites
-        saved_favorites = table_favorites
+with st.expander("Latest Recorded Prices", expanded=True):
+    st.caption("Toggle Favorite in the table to save or remove a tyre from your favorites.")
+    table = latest[
+        ["product_id", "name", "size", "price_eur", "observed_at", "url"]
+    ].rename(
+        columns={
+            "product_id": "Product ID",
+            "name": "Tyre",
+            "size": "Size",
+            "price_eur": "Price (€)",
+            "observed_at": "Last seen",
+            "url": "Product page",
+        }
+    ).set_index("Product ID")
+    table["Favorite"] = table.index.isin(saved_favorites)
+    edited_table = st.data_editor(
+        table,
+        hide_index=True,
+        width="stretch",
+        disabled=["Tyre", "Size", "Price (€)", "Last seen", "Product page"],
+        column_config={
+            "Favorite": st.column_config.CheckboxColumn(
+                help="Save this tyre as a favorite for this size."
+            ),
+            "Price (€)": st.column_config.NumberColumn(format="€%.2f"),
+            "Last seen": st.column_config.DatetimeColumn(format="YYYY-MM-DD HH:mm:ss"),
+            "Product page": st.column_config.LinkColumn(display_text="Open"),
+        },
+        key=f"latest_favorites_{selected_size}",
+    )
+    table_favorites = edited_table.index[edited_table["Favorite"]].tolist()
+    favorites_changed = set(table_favorites) != set(saved_favorites)
+    if favorites_changed:
+        updated_favorites = dict(favorites_by_size)
+        updated_favorites[selected_size] = table_favorites
+        try:
+            save_favorites(updated_favorites)
+        except OSError as error:
+            st.error(f"Could not save tyre favorites: {error}")
+        else:
+            favorites_by_size = updated_favorites
+            saved_favorites = table_favorites
 
 st.subheader("Price History")
 comparison_products = saved_favorites
