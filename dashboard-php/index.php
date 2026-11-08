@@ -196,6 +196,11 @@ function render_chart(array $history, array $favorites, string $period): string
             continue;
         }
         $series[$productId]['name'] = (string)$point['name'] . ' — ' . (string)$point['size'] . ' (#' . $productId . ')';
+        $url = filter_var((string)$point['url'], FILTER_VALIDATE_URL);
+        $scheme = $url === false ? '' : (string)parse_url($url, PHP_URL_SCHEME);
+        if (in_array(strtolower($scheme), ['http', 'https'], true)) {
+            $series[$productId]['url'] = $url;
+        }
         $series[$productId]['points'][] = [
             'time' => $timestamp,
             'label' => date_label((string)$point['observed_at']),
@@ -276,7 +281,11 @@ function render_chart(array $history, array $favorites, string $period): string
             $tooltip = $entry['name'] . ' — ' . $coordinate[2]['label'] . ' — ' . format_price($coordinate[2]['price']);
             $svg .= '<circle class="point" cx="' . round($coordinate[0], 2) . '" cy="' . round($coordinate[1], 2) . '" r="4" fill="' . $color . '"><title>' . h($tooltip) . '</title></circle>';
         }
-        $legend .= '<li><svg class="legend-swatch" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="' . h($color) . '"/></svg><span>' . h($entry['name']) . '</span></li>';
+        $label = h($entry['name']);
+        if (!empty($entry['url'])) {
+            $label = '<a href="' . h($entry['url']) . '" target="_blank" rel="noopener noreferrer">' . $label . '</a>';
+        }
+        $legend .= '<li><svg class="legend-swatch" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="' . h($color) . '"/></svg><span>' . $label . '</span></li>';
         $index++;
     }
 
