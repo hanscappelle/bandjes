@@ -360,7 +360,11 @@ try {
         $redirectPeriod = in_array((string)($_POST['period'] ?? ''), ['all', '30', '90'], true)
             ? (string)$_POST['period']
             : 'all';
-        header('Location: ?' . http_build_query(['size' => $postedSize, 'period' => $redirectPeriod]), true, 303);
+        $redirectUrl = '?' . http_build_query([
+            'size' => $postedSize,
+            'period' => $redirectPeriod,
+        ]) . '#product-' . rawurlencode($productId);
+        header('Location: ' . $redirectUrl, true, 303);
         exit;
     }
 
@@ -479,6 +483,18 @@ if ($latest) {
                 <div class="alert">No price observations found for <?= h($selectedSize) ?>.</div>
             <?php else: ?>
                 <?php $cheapest = reset($latest); ?>
+                <section class="panel chart-panel">
+                    <div class="section-heading">
+                        <div>
+                            <p class="eyebrow">FAVORITES</p>
+                            <h2>Price history</h2>
+                        </div>
+                        <span class="count"><?= $period === 'all' ? 'All history' : 'Last ' . h($period) . ' days' ?></span>
+                    </div>
+                    <?= render_chart($history, $savedFavorites, $period) ?>
+                    <p class="hint chart-note">A missing observation means the tyre was not present in that day's collected results; it does not necessarily mean it was out of stock. Hover over chart points for details.</p>
+                </section>
+
                 <section class="metrics" aria-label="Price summary">
                     <article class="metric panel">
                         <span class="metric-label">Tyres with recorded prices</span>
@@ -530,7 +546,7 @@ if ($latest) {
                                 $scheme = $url === false ? '' : (string)parse_url($url, PHP_URL_SCHEME);
                                 $safeUrl = in_array(strtolower($scheme), ['http', 'https'], true) ? $url : '';
                                 ?>
-                                <tr>
+                                <tr id="product-<?= h((string)$productId) ?>">
                                     <td>
                                         <form method="post" class="favorite-form">
                                             <input type="hidden" name="csrf_token" value="<?= h((string)$_SESSION['csrf_token']) ?>">
@@ -558,18 +574,6 @@ if ($latest) {
                             </tbody>
                         </table>
                     </div>
-                </section>
-
-                <section class="panel chart-panel">
-                    <div class="section-heading">
-                        <div>
-                            <p class="eyebrow">FAVORITES</p>
-                            <h2>Price history</h2>
-                        </div>
-                        <span class="count"><?= $period === 'all' ? 'All history' : 'Last ' . h($period) . ' days' ?></span>
-                    </div>
-                    <?= render_chart($history, $savedFavorites, $period) ?>
-                    <p class="hint chart-note">A missing observation means the tyre was not present in that day's collected results; it does not necessarily mean it was out of stock. Hover over chart points for details.</p>
                 </section>
             <?php endif; ?>
         </main>
