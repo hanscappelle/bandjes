@@ -449,7 +449,7 @@ if ($latest) {
                 <form method="get" class="filters">
                     <label>
                         Tyre size
-                        <select name="size" onchange="this.form.submit()">
+                        <select name="size">
                             <?php foreach ($availableSizes as $size): ?>
                                 <?php $position = $commonSizes[$size] ?? 'Position unknown'; ?>
                                 <option value="<?= h($size) ?>" <?= $size === $selectedSize ? 'selected' : '' ?>>
@@ -460,13 +460,13 @@ if ($latest) {
                     </label>
                     <label>
                         History period
-                        <select name="period" onchange="this.form.submit()">
+                        <select name="period">
                             <option value="all" <?= $period === 'all' ? 'selected' : '' ?>>All history</option>
                             <option value="90" <?= $period === '90' ? 'selected' : '' ?>>Last 90 days</option>
                             <option value="30" <?= $period === '30' ? 'selected' : '' ?>>Last 30 days</option>
                         </select>
                     </label>
-                    <noscript><button class="button" type="submit">Update view</button></noscript>
+                    <button class="button" type="submit">Update view</button>
                 </form>
                 <p class="hint">The database is read-only to this dashboard. Run <code>scrape_prices.py</code> separately or schedule it in DSM Task Scheduler.</p>
             </section>
