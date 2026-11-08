@@ -255,10 +255,10 @@ function render_chart(array $history, array $favorites, string $period): string
     }
 
     $index = 0;
-    $legendY = $height - 8;
-    $legendX = $left;
+    $legend = '<ul class="chart-legend" aria-label="Favorite tyres">';
     foreach ($series as $entry) {
-        $color = $colors[$index % count($colors)];
+        $colorIndex = $index % count($colors);
+        $color = $colors[$colorIndex];
         $coordinates = [];
         foreach ($entry['points'] as $point) {
             $x = $left + (($point['time'] - $minTime) / ($maxTime - $minTime)) * $plotWidth;
@@ -276,19 +276,11 @@ function render_chart(array $history, array $favorites, string $period): string
             $tooltip = $entry['name'] . ' — ' . $coordinate[2]['label'] . ' — ' . format_price($coordinate[2]['price']);
             $svg .= '<circle class="point" cx="' . round($coordinate[0], 2) . '" cy="' . round($coordinate[1], 2) . '" r="4" fill="' . $color . '"><title>' . h($tooltip) . '</title></circle>';
         }
-        $legendLabel = $entry['name'];
-        $legendWidth = min(420, max(120, strlen($legendLabel) * 7 + 34));
-        if ($legendX + $legendWidth > $width - $right) {
-            $legendX = $left;
-            $legendY -= 18;
-        }
-        $svg .= '<circle cx="' . ($legendX + 5) . '" cy="' . ($legendY - 4) . '" r="4" fill="' . $color . '"/>';
-        $svg .= '<text class="legend-label" x="' . ($legendX + 15) . '" y="' . $legendY . '">' . h($legendLabel) . '</text>';
-        $legendX += $legendWidth;
+        $legend .= '<li><svg class="legend-swatch" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="' . h($color) . '"/></svg><span>' . h($entry['name']) . '</span></li>';
         $index++;
     }
 
-    return $svg . '</svg>';
+    return $svg . '</svg>' . $legend . '</ul>';
 }
 
 $errorMessage = '';
