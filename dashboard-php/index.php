@@ -285,6 +285,9 @@ function render_chart(array $history, array $favorites, string $period): string
 
 $errorMessage = '';
 $selectedSize = '';
+$filterTerm = isset($_GET['filter']) && is_string($_GET['filter'])
+    ? trim($_GET['filter'])
+    : '';
 $period = isset($_GET['period']) && in_array((string)$_GET['period'], ['30', '90'], true)
     ? (string)$_GET['period']
     : 'all';
@@ -352,10 +355,17 @@ try {
         $redirectPeriod = in_array((string)($_POST['period'] ?? ''), ['all', '30', '90'], true)
             ? (string)$_POST['period']
             : 'all';
-        $redirectUrl = '?' . http_build_query([
+        $filterTerm = isset($_POST['filter']) && is_string($_POST['filter'])
+            ? trim($_POST['filter'])
+            : '';
+        $redirectParameters = [
             'size' => $postedSize,
             'period' => $redirectPeriod,
-        ]) . '#product-' . rawurlencode($productId);
+        ];
+        if ($filterTerm !== '') {
+            $redirectParameters['filter'] = $filterTerm;
+        }
+        $redirectUrl = '?' . http_build_query($redirectParameters) . '#product-' . rawurlencode($productId);
         header('Location: ' . $redirectUrl, true, 303);
         exit;
     }
@@ -466,7 +476,6 @@ if ($latest) {
                             <option value="30" <?= $period === '30' ? 'selected' : '' ?>>Last 30 days</option>
                         </select>
                     </label>
-                    <button class="button" type="submit">Update view</button>
                 </form>
                 <p class="hint">The database is read-only to this dashboard. Run <code>scrape_prices.py</code> separately or schedule it in DSM Task Scheduler.</p>
             </section>
@@ -515,19 +524,30 @@ if ($latest) {
                             <p class="eyebrow">CURRENT SNAPSHOT</p>
                             <h2>Latest recorded prices</h2>
                         </div>
-                        <span class="count"><?= count($latest) ?> tyres</span>
+                        <span class="count" id="latest-results-count" data-total="<?= count($latest) ?>"><?= count($latest) ?> tyres</span>
                     </div>
                     <p class="hint">Use the star to add or remove a tyre from the price-history chart.</p>
+                    <label class="table-filter">
+                        Filter results
+                        <input
+                            id="latest-results-filter"
+                            type="search"
+                            name="filter"
+                            value="<?= h($filterTerm) ?>"
+                            placeholder="Search tyre, size, price, or date"
+                            aria-controls="latest-results-table"
+                        >
+                    </label>
                     <div class="table-wrap">
-                        <table>
+                        <table id="latest-results-table">
                             <thead>
                             <tr>
-                                <th>Favorite</th>
-                                <th>Tyre</th>
-                                <th>Size</th>
-                                <th class="numeric">Price</th>
-                                <th>Last seen</th>
-                                <th>Product page</th>
+                                <th aria-sort="none"><button class="sort-button" type="button" data-sort-column="0">Favorite</button></th>
+                                <th aria-sort="none"><button class="sort-button" type="button" data-sort-column="1">Tyre</button></th>
+                                <th aria-sort="none"><button class="sort-button" type="button" data-sort-column="2">Size</button></th>
+                                <th class="numeric" aria-sort="none"><button class="sort-button" type="button" data-sort-column="3">Price</button></th>
+                                <th aria-sort="none"><button class="sort-button" type="button" data-sort-column="4">Last seen</button></th>
+                                <th aria-sort="none"><button class="sort-button" type="button" data-sort-column="5">Product page</button></th>
                             </tr>
                             </thead>
                             <tbody>
@@ -539,11 +559,12 @@ if ($latest) {
                                 $safeUrl = in_array(strtolower($scheme), ['http', 'https'], true) ? $url : '';
                                 ?>
                                 <tr id="product-<?= h((string)$productId) ?>">
-                                    <td>
+                                    <td data-sort-value="<?= $isFavorite ? '1' : '0' ?>">
                                         <form method="post" class="favorite-form">
                                             <input type="hidden" name="csrf_token" value="<?= h((string)$_SESSION['csrf_token']) ?>">
                                             <input type="hidden" name="size" value="<?= h($selectedSize) ?>">
                                             <input type="hidden" name="period" value="<?= h($period) ?>">
+                                            <input type="hidden" name="filter" value="<?= h($filterTerm) ?>">
                                             <input type="hidden" name="product_id" value="<?= h((string)$productId) ?>">
                                             <button class="star <?= $isFavorite ? 'active' : '' ?>" type="submit" aria-label="<?= $isFavorite ? 'Remove favorite' : 'Add favorite' ?>" title="<?= $isFavorite ? 'Remove favorite' : 'Add favorite' ?>">
                                                 <?= $isFavorite ? '★' : '☆' ?>
@@ -552,17 +573,20 @@ if ($latest) {
                                     </td>
                                     <td class="tyre-name"><?= h((string)$row['name']) ?></td>
                                     <td><?= h($selectedSize) ?></td>
-                                    <td class="numeric price"><?= h(format_price((float)$row['price_eur'])) ?></td>
-                                    <td class="timestamp"><?= h(date_label((string)$row['observed_at'])) ?></td>
+                                    <td class="numeric price" data-sort-value="<?= h((string)$row['price_eur']) ?>"><?= h(format_price((float)$row['price_eur'])) ?></td>
+                                    <td class="timestamp" data-sort-value="<?= h((string)$row['observed_at']) ?>"><?= h(date_label((string)$row['observed_at'])) ?></td>
                                     <td>
                                         <?php if ($safeUrl !== ''): ?>
-                                            <a href="<?= h($safeUrl) ?>" target="_blank" rel="noopener noreferrer">Open ↗</a>
+                                            <a href="<?= h($safeUrl) ?>" target="_blank" rel="noopener noreferrer" data-sort-value="<?= h($safeUrl) ?>">Open ↗</a>
                                         <?php else: ?>
                                             <span class="muted">Unavailable</span>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
+                            <tr id="latest-results-empty" hidden>
+                                <td colspan="6">No tyres match this filter.</td>
+                            </tr>
                             </tbody>
                         </table>
                     </div>
@@ -576,5 +600,6 @@ if ($latest) {
         <span>Collection is handled separately by the Python script.</span>
     </footer>
 </div>
+<script src="dashboard.js" defer></script>
 </body>
 </html>
