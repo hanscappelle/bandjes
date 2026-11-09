@@ -7,7 +7,9 @@ Optionally add ?p=2 and more for next pages, script will automatically traverse 
 
 ![Price history dashboard screenshot](assets/Screenshot%202026-11-08%20at%2015.02.28.png)
 
-# Warning !!
+Public dashboard published at https://betyre.alwaysdata.net/?filter=&favorites_only=0&size=180%2F55R17&period=all
+
+## Warning !!
 
 Bandenleader is blocking after too many requests, still looking into this.
 For now this has been fixed with a delay, keep the delay between requests. 
