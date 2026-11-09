@@ -59,7 +59,8 @@ the task account. Generate a token with `openssl rand -hex 32`.
 The script uses direct HTTP requests with the same pagination, request delay,
 and timeout settings as the SQLite collector. For example, `--delay 10`
 controls the delay between page requests and `--max-pages 1` limits pages per
-size.
+size. Collection progress, publishing results, and errors are printed with
+timestamps.
 Observations are stored with a local collection timestamp in
 `price_observations`; product details are upserted into `products`. Initialize
 the database tables once using [`schema.sql`](schema.sql). The endpoint writes

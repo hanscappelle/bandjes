@@ -28,6 +28,11 @@ VOID_TAGS = {
 }
 
 
+def log(message, stream=sys.stdout):
+    timestamp = datetime.now().isoformat(sep=" ", timespec="seconds")
+    print(f"[{timestamp}] {message}", file=stream)
+
+
 class NoRedirectHandler(HTTPRedirectHandler):
     def redirect_request(self, request, response, code, message, headers, new_url):
         return None
@@ -305,19 +310,20 @@ def main():
 
         all_products = []
         for index, size in enumerate(sizes):
+            log(f"{size}: starting collection")
             products, page_count, truncated = scrape_size(
                 size, args.max_pages, args.delay, args.timeout
             )
             all_products.extend(products)
-            print(
+            log(
                 f"{size}: collected {len(products)} tyre prices "
                 f"from {page_count} page(s)"
             )
             if truncated:
-                print(
+                log(
                     f"Warning: {size} reached --max-pages; "
                     "some listing results may be missing.",
-                    file=sys.stderr,
+                    stream=sys.stderr,
                 )
             if index + 1 < len(sizes) and args.delay:
                 time.sleep(args.delay)
@@ -330,9 +336,9 @@ def main():
             all_products,
             args.timeout,
         )
-        print(f"Published {len(all_products)} observations over HTTPS.")
+        log(f"Published {len(all_products)} observations over HTTPS.")
     except (OSError, RuntimeError, ValueError) as error:
-        print(f"Error: {error}", file=sys.stderr)
+        log(f"Error: {error}", stream=sys.stderr)
         return 1
     return 0
 
