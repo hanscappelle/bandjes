@@ -1,13 +1,16 @@
 # Pricewatch for Motorcycle Tyres
 
-Scripts and Dashboard to collect tyres prices over time for a specific set of tyre sizes. Using bandenleader.be webshop as a, currently single, source. 
-
-Check for example: https://www.bandenleader.be/motor-band-150-70-18/
-Optionally add ?p=2 and more for next pages, script will automatically traverse pagination when found. 
+Scripts and Dashboard to collect tyres prices over time for a specific set of tyre sizes. Using bandenleader.be webshop as a single source. 
 
 ![Price history dashboard screenshot](assets/Screenshot%202026-11-08%20at%2015.02.28.png)
 
 Public dashboard published at [https://betyre.alwaysdata.net/](https://betyre.alwaysdata.net/?filter=&favorites_only=0&size=180%2F55R17&period=all) Only a limited set of 5 tyre sizes are collected at this point. Put a request here if you want more or run the script locally for your specific setup. 
+
+## Favourites storage
+
+For the public dashboard favourites are stored in a browser session cookie so no login is required. However this way if you change browser, block cookies or clear cookies these can be lost. 
+
+For the App there is local android system storage (preferences) used to keep these favourites in place. Removing storage from app or clean install of the app will also remove your personal favourites. 
 
 ## Warning !!
 
