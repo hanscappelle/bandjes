@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 var rightValue = sortValue(right, sortColumn);
                 var comparison;
 
-                if (sortColumn === 0 || sortColumn === 3) {
+                if (sortColumn === 0 || sortColumn === 2) {
                     comparison = Number(leftValue) - Number(rightValue);
                 } else {
                     comparison = collator.compare(leftValue, rightValue);

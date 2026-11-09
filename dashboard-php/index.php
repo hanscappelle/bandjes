@@ -181,7 +181,7 @@ function render_chart(array $history, array $favorites, string $period): string
         }
     }
 
-    $days = $period === '30' ? 30 : ($period === '90' ? 90 : null);
+    $days = in_array($period, ['7', '30', '90'], true) ? (int)$period : null;
     $cutoff = $days === null || $latestTimestamp === 0
         ? null
         : $latestTimestamp - ($days * 86400);
@@ -195,7 +195,8 @@ function render_chart(array $history, array $favorites, string $period): string
         if ($cutoff !== null && $timestamp < $cutoff) {
             continue;
         }
-        $series[$productId]['name'] = (string)$point['name'] . ' — ' . (string)$point['size'] . ' (#' . $productId . ')';
+        $series[$productId]['name'] = (string)$point['name'] . ' — ' . (string)$point['size'];
+        $series[$productId]['product_id'] = $productId;
         $url = filter_var((string)$point['url'], FILTER_VALIDATE_URL);
         $scheme = $url === false ? '' : (string)parse_url($url, PHP_URL_SCHEME);
         if (in_array(strtolower($scheme), ['http', 'https'], true)) {
@@ -281,11 +282,11 @@ function render_chart(array $history, array $favorites, string $period): string
             $tooltip = $entry['name'] . ' — ' . $coordinate[2]['label'] . ' — ' . format_price($coordinate[2]['price']);
             $svg .= '<circle class="point" cx="' . round($coordinate[0], 2) . '" cy="' . round($coordinate[1], 2) . '" r="4" fill="' . $color . '"><title>' . h($tooltip) . '</title></circle>';
         }
-        $label = h($entry['name']);
+        $productNumber = '#' . h($entry['product_id']);
         if (!empty($entry['url'])) {
-            $label = '<a href="' . h($entry['url']) . '" target="_blank" rel="noopener noreferrer">' . $label . '</a>';
+            $productNumber = '<a href="' . h($entry['url']) . '" target="_blank" rel="noopener noreferrer">' . $productNumber . '</a>';
         }
-        $legend .= '<li><svg class="legend-swatch" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="' . h($color) . '"/></svg><span>' . $label . '</span></li>';
+        $legend .= '<li><svg class="legend-swatch" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="' . h($color) . '"/></svg><span>' . h($entry['name']) . ' (' . $productNumber . ')</span></li>';
         $index++;
     }
 
@@ -297,7 +298,7 @@ $selectedSize = '';
 $filterTerm = isset($_GET['filter']) && is_string($_GET['filter'])
     ? trim($_GET['filter'])
     : '';
-$period = isset($_GET['period']) && in_array((string)$_GET['period'], ['30', '90'], true)
+$period = isset($_GET['period']) && in_array((string)$_GET['period'], ['7', '30', '90'], true)
     ? (string)$_GET['period']
     : 'all';
 $commonSizes = [];
@@ -361,7 +362,7 @@ try {
         $favoritesBySize[$postedSize] = $current;
         save_favorites($favoritesBySize);
 
-        $redirectPeriod = in_array((string)($_POST['period'] ?? ''), ['all', '30', '90'], true)
+        $redirectPeriod = in_array((string)($_POST['period'] ?? ''), ['all', '7', '30', '90'], true)
             ? (string)$_POST['period']
             : 'all';
         $filterTerm = isset($_POST['filter']) && is_string($_POST['filter'])
@@ -483,10 +484,10 @@ if ($latest) {
                             <option value="all" <?= $period === 'all' ? 'selected' : '' ?>>All history</option>
                             <option value="90" <?= $period === '90' ? 'selected' : '' ?>>Last 90 days</option>
                             <option value="30" <?= $period === '30' ? 'selected' : '' ?>>Last 30 days</option>
+                            <option value="7" <?= $period === '7' ? 'selected' : '' ?>>Last 7 days</option>
                         </select>
                     </label>
                 </form>
-                <p class="hint">The database is read-only to this dashboard. Run <code>scrape_prices.py</code> separately or schedule it in DSM Task Scheduler.</p>
             </section>
 
             <?php if (!$latest): ?>
@@ -543,7 +544,7 @@ if ($latest) {
                             type="search"
                             name="filter"
                             value="<?= h($filterTerm) ?>"
-                            placeholder="Search tyre, size, price, or date"
+                            placeholder="Search tyre, price, or date"
                             aria-controls="latest-results-table"
                         >
                     </label>
@@ -551,12 +552,11 @@ if ($latest) {
                         <table id="latest-results-table">
                             <thead>
                             <tr>
-                                <th aria-sort="none"><button class="sort-button" type="button" data-sort-column="0">Favorite</button></th>
+                                <th scope="col" aria-label="Favorite"></th>
                                 <th aria-sort="none"><button class="sort-button" type="button" data-sort-column="1">Tyre</button></th>
-                                <th aria-sort="none"><button class="sort-button" type="button" data-sort-column="2">Size</button></th>
-                                <th class="numeric" aria-sort="none"><button class="sort-button" type="button" data-sort-column="3">Price</button></th>
-                                <th aria-sort="none"><button class="sort-button" type="button" data-sort-column="4">Last seen</button></th>
-                                <th aria-sort="none"><button class="sort-button" type="button" data-sort-column="5">Product page</button></th>
+                                <th class="numeric" aria-sort="none"><button class="sort-button" type="button" data-sort-column="2">Price</button></th>
+                                <th aria-sort="none"><button class="sort-button" type="button" data-sort-column="3">Last seen</button></th>
+                                <th scope="col" aria-label="Product page"></th>
                             </tr>
                             </thead>
                             <tbody>
@@ -581,7 +581,6 @@ if ($latest) {
                                         </form>
                                     </td>
                                     <td class="tyre-name"><?= h((string)$row['name']) ?></td>
-                                    <td><?= h($selectedSize) ?></td>
                                     <td class="numeric price" data-sort-value="<?= h((string)$row['price_eur']) ?>"><?= h(format_price((float)$row['price_eur'])) ?></td>
                                     <td class="timestamp" data-sort-value="<?= h((string)$row['observed_at']) ?>"><?= h(date_label((string)$row['observed_at'])) ?></td>
                                     <td>
@@ -594,7 +593,7 @@ if ($latest) {
                                 </tr>
                             <?php endforeach; ?>
                             <tr id="latest-results-empty" hidden>
-                                <td colspan="6">No tyres match this filter.</td>
+                                <td colspan="5">No tyres match this filter.</td>
                             </tr>
                             </tbody>
                         </table>
@@ -607,6 +606,7 @@ if ($latest) {
     <footer>
         <span>Motorcycle Tyre Price Watch</span>
         <span>Collection is handled separately by the Python script.</span>
+        <span>The database is read-only to this dashboard. Run <code>scrape_prices.py</code> separately or schedule it in DSM Task Scheduler.</span>
     </footer>
 </div>
 <script src="dashboard.js" defer></script>

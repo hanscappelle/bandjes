@@ -101,6 +101,11 @@ footer,
     gap: 16px;
 }
 
+.filters label {
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center;
+}
+
 label {
     display: grid;
     gap: 7px;
@@ -122,6 +127,10 @@ select,
 }
 
 .table-filter {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
     width: min(100%, 440px);
     min-width: 0;
     margin-top: 16px;
@@ -216,6 +225,14 @@ table {
     border-collapse: collapse;
     font-size: 0.9rem;
     text-align: left;
+}
+
+#latest-results-table th:first-child,
+#latest-results-table td:first-child {
+    width: 1%;
+    padding-right: 4px;
+    padding-left: 4px;
+    white-space: nowrap;
 }
 
 th,
