@@ -42,7 +42,9 @@ favorite's latest price with its price at the previous check; the first check
 establishes a baseline and does not alert.
 Checks require network access, and Android may delay them for battery
 management, so they are not exact-time alarms. Android 13 and newer require
-notification permission.
+notification permission. Open **Alert status** in settings to see the last
+check result and favorite price baselines, refresh that status, or send a test
+notification.
 
 ## Build requirements
 

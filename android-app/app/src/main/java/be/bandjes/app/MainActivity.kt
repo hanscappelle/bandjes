@@ -2,6 +2,7 @@ package be.bandjes.app
 
 import android.Manifest
 import android.content.ActivityNotFoundException
+import android.content.SharedPreferences
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -76,6 +79,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.text.NumberFormat
+import java.text.DateFormat
+import java.util.Date
 import java.util.Locale
 import androidx.compose.ui.graphics.toArgb
 
@@ -221,12 +226,21 @@ internal class FavoriteStore(
                     (preferences.getStringSet(key, null)?.toSet().orEmpty())
             }
 
-    fun setPriceBaseline(productId: String, price: Double?) {
+    fun setPriceBaseline(
+        productId: String,
+        price: Double?,
+        name: String? = null,
+        size: String? = null,
+    ) {
         val editor = preferences.edit()
         if (price == null) {
             editor.remove(priceBaselineKey(productId))
+            editor.remove(priceBaselineNameKey(productId))
+            editor.remove(priceBaselineSizeKey(productId))
         } else {
             editor.putString(priceBaselineKey(productId), price.toString())
+            name?.let { editor.putString(priceBaselineNameKey(productId), it) }
+            size?.let { editor.putString(priceBaselineSizeKey(productId), it) }
         }
         editor.apply()
     }
@@ -236,6 +250,8 @@ internal class FavoriteStore(
     companion object {
         const val FAVORITE_PRODUCT_IDS_PREFIX = "favorite_product_ids:"
         fun priceBaselineKey(productId: String) = "alert_last_price:$productId"
+        fun priceBaselineNameKey(productId: String) = "alert_last_name:$productId"
+        fun priceBaselineSizeKey(productId: String) = "alert_last_size:$productId"
     }
 }
 
@@ -359,6 +375,7 @@ private fun Dashboard(
         mutableStateOf(normalizePriceAlertChecksPerDay(savedAlertChecksPerDay).toString())
     }
     var alertSettingsMessage by remember { mutableStateOf<String?>(null) }
+    var showAlertStatus by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -596,6 +613,12 @@ private fun Dashboard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    TextButton(
+                        onClick = { showAlertStatus = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Alert status")
+                    }
                     if (alertEnabled) {
                         Text(
                             "Checks are scheduled by Android and may be delayed by battery or network restrictions.",
@@ -773,6 +796,8 @@ private fun Dashboard(
                             favoriteStore.setPriceBaseline(
                                 tyre.productId,
                                 if (tyre.favorite) null else tyre.price,
+                                name = tyre.name,
+                                size = tyre.size,
                             )
                             favoriteIds = updatedFavoriteIds
                             error = null
@@ -791,6 +816,124 @@ private fun Dashboard(
         }
         }
     }
+    if (showAlertStatus) {
+        AlertStatusDialog(
+            preferences = context.getSharedPreferences("bandjes", android.content.Context.MODE_PRIVATE),
+            onDismiss = { showAlertStatus = false },
+        )
+    }
+}
+
+@Composable
+private fun AlertStatusDialog(
+    preferences: SharedPreferences,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    var status by remember { mutableStateOf(loadPriceAlertStatus(preferences)) }
+    var notificationMessage by remember { mutableStateOf<String?>(null) }
+    val testNotificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        notificationMessage = if (granted && postTestPriceAlertNotification(context)) {
+            "Test notification sent."
+        } else {
+            "Notifications are not allowed for Bandjes."
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Alert status", modifier = Modifier.weight(1f))
+                TextButton(onClick = { status = loadPriceAlertStatus(preferences) }) {
+                    Text("Refresh")
+                }
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    status.checkedAt?.let {
+                        "Last check: ${DateFormat.getDateTimeInstance().format(Date(it))}"
+                    } ?: "No background check has run yet.",
+                )
+                status.succeeded?.let { succeeded ->
+                    Text(
+                        if (succeeded) "Result: succeeded" else "Result: failed",
+                        color = if (succeeded) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error,
+                    )
+                }
+                status.message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                Text(
+                    "Favorite price baselines",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (status.baselines.isEmpty()) {
+                    Text(
+                        "No saved baselines yet. Baselines are created after an alert check.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 220.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        items(
+                            status.baselines,
+                            key = { "${it.size}:${it.productId}" },
+                        ) { baseline ->
+                            Text(
+                                "${baseline.name} (${baseline.size}): ${formatPrice(baseline.price)}",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                }
+                notificationMessage?.let {
+                    Text(
+                        it,
+                        color = if (it.startsWith("Test")) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Done") }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = {
+                    notificationMessage = null
+                    if (
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                        PackageManager.PERMISSION_GRANTED
+                    ) {
+                        testNotificationPermissionLauncher.launch(
+                            Manifest.permission.POST_NOTIFICATIONS,
+                        )
+                    } else {
+                        notificationMessage = if (postTestPriceAlertNotification(context)) {
+                            "Test notification sent."
+                        } else {
+                            "Notifications are not allowed for Bandjes."
+                        }
+                    }
+                },
+            ) {
+                Text("Send test notification")
+            }
+        },
+    )
 }
 
 @Composable

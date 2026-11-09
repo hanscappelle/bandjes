@@ -61,8 +61,8 @@ python3 scrape_prices.py --sizes 90/90R21 140/80R18 150/70R18
 
 Run the command once per day to build the price history. The script discovers
 the number of pages by following each page's next-page link and prints the
-number processed per size. Use `--database PATH` to choose a different
-database, `--delay SECONDS` to change the wait between requests, or
+number processed per size with timestamps. Use `--database PATH` to choose a
+different database, `--delay SECONDS` to change the wait between requests, or
 `--max-pages 1` to intentionally stop after the first page. Size notation is normalized to
 `150/70R17`, combining equivalent source formats such as `150/70-17`,
 `150/70 R17`, and `150/70 ZR17` in the dashboard. Each observation is keyed by

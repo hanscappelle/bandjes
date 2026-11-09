@@ -24,6 +24,11 @@ VOID_TAGS = {
 }
 
 
+def log(message, stream=sys.stdout):
+    timestamp = datetime.now().isoformat(sep=" ", timespec="seconds")
+    print(f"[{timestamp}] {message}", file=stream)
+
+
 class ListingParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -331,19 +336,20 @@ def main():
 
         all_products = []
         for index, size in enumerate(sizes):
+            log(f"{size}: starting collection")
             products, page_count, truncated = scrape_size(
                 size, args.max_pages, args.delay, args.timeout
             )
             all_products.extend(products)
-            print(
+            log(
                 f"{size}: collected {len(products)} tyre prices "
                 f"from {page_count} page(s)"
             )
             if truncated:
-                print(
+                log(
                     f"Warning: {size} reached --max-pages; "
                     "some listing results may be missing.",
-                    file=sys.stderr,
+                    stream=sys.stderr,
                 )
             if index + 1 < len(sizes) and args.delay:
                 time.sleep(args.delay)
@@ -353,9 +359,9 @@ def main():
             initialize_database(connection)
             observed_at = datetime.now().isoformat(timespec="seconds")
             save_observations(connection, observed_at, all_products)
-        print(f"Saved {len(all_products)} observations to {args.database}")
+        log(f"Saved {len(all_products)} observations to {args.database}")
     except (OSError, sqlite3.Error, RuntimeError, ValueError) as error:
-        print(f"Error: {error}", file=sys.stderr)
+        log(f"Error: {error}", stream=sys.stderr)
         return 1
     return 0
 
