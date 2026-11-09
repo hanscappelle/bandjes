@@ -64,36 +64,6 @@ def remember_database_path(database_path):
             temporary_path.unlink()
 
 
-def firefox_profile_settings_path():
-    if sys.platform == "darwin":
-        settings_dir = Path.home() / "Library/Application Support/TyrePriceWatch"
-    else:
-        settings_dir = Path(
-            os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")
-        ) / "tyre-price-watch"
-    return settings_dir / "firefox_profile.txt"
-
-
-def load_remembered_firefox_profile():
-    settings_path = firefox_profile_settings_path()
-    if not settings_path.is_file():
-        return ""
-    return settings_path.read_text(encoding="utf-8").strip()
-
-
-def remember_firefox_profile(profile_path):
-    settings_path = firefox_profile_settings_path()
-    settings_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    settings_path.write_text(profile_path.strip(), encoding="utf-8")
-    settings_path.chmod(0o600)
-
-
-def forget_firefox_profile():
-    settings_path = firefox_profile_settings_path()
-    if settings_path.exists():
-        settings_path.unlink()
-
-
 def favorites_settings_path():
     if sys.platform == "darwin":
         settings_dir = Path.home() / "Library/Application Support/TyrePriceWatch"
@@ -249,12 +219,6 @@ except (OSError, KeyError, csv.Error) as error:
     st.stop()
 
 try:
-    remembered_firefox_profile = load_remembered_firefox_profile()
-except (OSError, UnicodeError) as error:
-    remembered_firefox_profile = ""
-    st.error(f"Could not read the remembered Firefox profile setting: {error}")
-
-try:
     favorites_by_size = load_favorites()
 except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
     favorites_by_size = {}
@@ -308,48 +272,6 @@ with st.sidebar:
         st.error(f"Could not save the database path setting: {error}")
     st.divider()
     st.header("Collect Prices")
-    connection_mode = st.radio(
-        "Connection",
-        ["Firefox VPN profile", "Direct HTTP"],
-        index=1,
-        help=(
-            "Firefox mode launches a separate automated Firefox session using a copy "
-            "of your configured profile."
-        ),
-    )
-    firefox_profile = ""
-    vpn_wait = 0
-    if connection_mode == "Firefox VPN profile":
-        firefox_profile = st.text_input(
-            "Firefox profile folder",
-            value=os.environ.get("FIREFOX_PROFILE", remembered_firefox_profile),
-            key="firefox_profile_path",
-            placeholder="~/Library/Application Support/Firefox/Profiles/...",
-            help=(
-                "Use a dedicated Firefox profile with your VPN extension installed, "
-                "configured, and connected."
-            ),
-        ).strip()
-        remember_profile = st.checkbox(
-            "Remember profile location on this device",
-            value=bool(remembered_firefox_profile),
-            help="Stores only the profile folder path locally for the next dashboard run.",
-        )
-        st.caption(
-            "Firefox will launch separately; this does not control your existing Firefox window."
-        )
-        vpn_wait = st.number_input(
-            "Wait before scraping (seconds)",
-            min_value=0,
-            max_value=300,
-            value=60,
-            step=15,
-            help=(
-                "Time after Firefox opens to manually connect the VPN extension "
-                "before the first price request."
-            ),
-        )
-
     default_collection_sizes = (
         ["90/90R21", "140/80R18", "150/70R18"]
         if remembered_collection_sizes is None
@@ -379,23 +301,11 @@ with st.sidebar:
     run_collection = st.button(
         "Run price collection",
         type="primary",
-        disabled=(
-            not sizes_to_collect
-            or (connection_mode == "Firefox VPN profile" and not firefox_profile)
-        ),
+        disabled=not sizes_to_collect,
         width="stretch",
     )
 
 if run_collection:
-    if connection_mode == "Firefox VPN profile":
-        try:
-            if remember_profile:
-                remember_firefox_profile(firefox_profile)
-            else:
-                forget_firefox_profile()
-        except OSError as error:
-            st.error(f"Could not update the remembered Firefox profile setting: {error}")
-
     command = [
         sys.executable,
         str(ROOT / "scrape_prices.py"),
@@ -404,32 +314,14 @@ if run_collection:
         "--database",
         str(database_path.resolve()),
     ]
-    if connection_mode == "Firefox VPN profile":
-        command.extend(
-            [
-                "--firefox-profile",
-                firefox_profile,
-                "--vpn-wait",
-                str(int(vpn_wait)),
-            ]
-        )
     try:
-        with st.spinner(
-            (
-                f"Firefox is open. Connect the VPN; scraping starts in "
-                f"{int(vpn_wait)} seconds..."
-                if connection_mode == "Firefox VPN profile" and vpn_wait
-                else "Collecting prices in Firefox. This may take a few minutes..."
-            )
-            if connection_mode == "Firefox VPN profile"
-            else "Collecting prices. This may take a few minutes..."
-        ):
+        with st.spinner("Collecting prices. This may take a few minutes..."):
             result = subprocess.run(
                 command,
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
-                timeout=1800 + int(vpn_wait),
+                timeout=1800,
                 check=False,
             )
     except subprocess.TimeoutExpired:

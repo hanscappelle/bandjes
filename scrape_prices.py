@@ -3,14 +3,12 @@
 
 import argparse
 import csv
-from contextlib import nullcontext
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from html.parser import HTMLParser
 from pathlib import Path
 import sqlite3
 import sys
-import tempfile
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urljoin
@@ -139,95 +137,6 @@ def fetch_listing(url, timeout):
         raise RuntimeError(f"Bandenleader returned HTTP {error.code} for {url}") from error
     except URLError as error:
         raise RuntimeError(f"Could not fetch {url}: {error.reason}") from error
-
-
-class FirefoxFetcher:
-    def __init__(self, profile_path, timeout):
-        profile_path = Path(profile_path).expanduser().resolve()
-        if not profile_path.is_dir() or not (profile_path / "prefs.js").is_file():
-            raise RuntimeError(
-                f"Firefox profile must be an existing profile directory containing prefs.js: "
-                f"{profile_path}"
-            )
-
-        try:
-            from selenium import webdriver
-            from selenium.common.exceptions import WebDriverException
-            from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
-            from selenium.webdriver.firefox.options import Options
-            from selenium.webdriver.firefox.service import Service
-        except ImportError as error:
-            raise RuntimeError(
-                "Firefox collection requires Selenium. Install dependencies with "
-                "`python3 -m pip install -r requirements.txt`."
-            ) from error
-
-        options = Options()
-        options.profile = FirefoxProfile(str(profile_path))
-        self._log_directory = tempfile.TemporaryDirectory(
-            prefix="tyre-price-firefox-"
-        )
-        log_path = Path(self._log_directory.name) / "geckodriver.log"
-        service = Service(log_output=str(log_path))
-        self.driver = None
-        try:
-            self.driver = webdriver.Firefox(options=options, service=service)
-            self.driver.set_page_load_timeout(timeout)
-        except WebDriverException as error:
-            shutdown_error = ""
-            if self.driver is not None:
-                try:
-                    self.driver.quit()
-                except WebDriverException as quit_error:
-                    shutdown_error = f"\nFirefox shutdown error: {quit_error}"
-            log_tail = ""
-            if log_path.is_file():
-                log_tail = "\n".join(
-                    log_path.read_text(errors="replace").splitlines()[-30:]
-                )
-            self._log_directory.cleanup()
-            diagnostic = f"\nFirefox startup log:\n{log_tail}" if log_tail else ""
-            raise RuntimeError(
-                "Could not start Firefox with the selected profile. Verify the profile "
-                "folder is a Firefox Root Directory and try a fresh dedicated profile "
-                "with the VPN extension installed. "
-                f"Details: {error}{shutdown_error}{diagnostic}"
-            ) from error
-
-    def fetch(self, url, timeout):
-        from selenium.common.exceptions import TimeoutException, WebDriverException
-
-        try:
-            self.driver.get(url)
-            page = self.driver.page_source
-        except TimeoutException as error:
-            raise RuntimeError(
-                f"Firefox timed out loading {url}; stopping without retrying."
-            ) from error
-        except WebDriverException as error:
-            raise RuntimeError(f"Firefox could not load {url}: {error}") from error
-
-        lowered_page = page.lower()
-        if any(
-            marker in lowered_page
-            for marker in ("access denied", "too many requests", "verify you are human")
-        ):
-            raise RuntimeError(
-                "Firefox received a block or verification page; stopping without retrying."
-            )
-        return page
-
-    def close(self):
-        try:
-            self.driver.quit()
-        finally:
-            self._log_directory.cleanup()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close()
 
 
 def scrape_size(size, max_pages, delay, timeout, fetch_page=fetch_listing):
@@ -403,24 +312,6 @@ def main():
         default=20,
         help="request timeout in seconds (default: 20)",
     )
-    argument_parser.add_argument(
-        "--firefox-profile",
-        type=Path,
-        help=(
-            "use Firefox with this configured profile (for example one with a VPN extension); "
-            "direct HTTP is used when omitted"
-        ),
-    )
-    argument_parser.add_argument(
-        "--vpn-wait",
-        type=int,
-        default=0,
-        metavar="SECONDS",
-        help=(
-            "wait this long after Firefox starts before the first request, "
-            "so you can connect the VPN manually"
-        ),
-    )
     args = argument_parser.parse_args()
 
     try:
@@ -428,10 +319,6 @@ def main():
             raise ValueError("--max-pages must be at least 1 when provided.")
         if args.delay < 0 or args.timeout <= 0:
             raise ValueError("--delay cannot be negative and --timeout must be positive.")
-        if not 0 <= args.vpn_wait <= 300:
-            raise ValueError("--vpn-wait must be between 0 and 300 seconds.")
-        if args.vpn_wait and not args.firefox_profile:
-            raise ValueError("--vpn-wait requires --firefox-profile.")
         sizes = [normalize_size(size) for size in args.sizes]
         if len(set(sizes)) != len(sizes):
             raise ValueError("Each selected size must be unique.")
@@ -442,37 +329,24 @@ def main():
                 "Not in common_motorcycle_tyre_sizes.csv: " + ", ".join(unknown_sizes)
             )
 
-        browser = (
-            FirefoxFetcher(args.firefox_profile, args.timeout)
-            if args.firefox_profile
-            else nullcontext(None)
-        )
-        with browser as firefox:
-            fetch_page = firefox.fetch if firefox else fetch_listing
-            if firefox and args.vpn_wait:
+        all_products = []
+        for index, size in enumerate(sizes):
+            products, page_count, truncated = scrape_size(
+                size, args.max_pages, args.delay, args.timeout
+            )
+            all_products.extend(products)
+            print(
+                f"{size}: collected {len(products)} tyre prices "
+                f"from {page_count} page(s)"
+            )
+            if truncated:
                 print(
-                    f"Firefox is open. Connect the VPN within {args.vpn_wait} seconds; "
-                    "the first price request will wait."
+                    f"Warning: {size} reached --max-pages; "
+                    "some listing results may be missing.",
+                    file=sys.stderr,
                 )
-                time.sleep(args.vpn_wait)
-            all_products = []
-            for index, size in enumerate(sizes):
-                products, page_count, truncated = scrape_size(
-                    size, args.max_pages, args.delay, args.timeout, fetch_page
-                )
-                all_products.extend(products)
-                print(
-                    f"{size}: collected {len(products)} tyre prices "
-                    f"from {page_count} page(s)"
-                )
-                if truncated:
-                    print(
-                        f"Warning: {size} reached --max-pages; "
-                        "some listing results may be missing.",
-                        file=sys.stderr,
-                    )
-                if index + 1 < len(sizes) and args.delay:
-                    time.sleep(args.delay)
+            if index + 1 < len(sizes) and args.delay:
+                time.sleep(args.delay)
 
         args.database.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(args.database) as connection:
