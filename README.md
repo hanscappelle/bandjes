@@ -7,7 +7,7 @@ Optionally add ?p=2 and more for next pages, script will automatically traverse 
 
 ![Price history dashboard screenshot](assets/Screenshot%202026-11-08%20at%2015.02.28.png)
 
-Public dashboard published at https://betyre.alwaysdata.net/?filter=&favorites_only=0&size=180%2F55R17&period=all
+Public dashboard published at [https://betyre.alwaysdata.net/](https://betyre.alwaysdata.net/?filter=&favorites_only=0&size=180%2F55R17&period=all) Only a limited set of 5 tyre sizes are collected at this point. Put a request here if you want more or run the script locally for your specific setup. 
 
 ## Warning !!
 
