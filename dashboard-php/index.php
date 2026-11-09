@@ -15,6 +15,7 @@ header("Content-Security-Policy: default-src 'self'; style-src 'self'; img-src '
 
 const ROOT = __DIR__ . '/..';
 const FAVORITES_FILE = __DIR__ . '/favorites.json';
+const FAVORITES_LOCK_FILE = __DIR__ . '/favorites.lock';
 
 function h(string $value): string
 {
@@ -352,15 +353,29 @@ try {
             throw new RuntimeException('That tyre is not present for the selected size.');
         }
 
-        $current = $favoritesBySize[$postedSize] ?? [];
-        $current = array_values(array_unique(array_filter($current, 'is_string')));
-        if (in_array($productId, $current, true)) {
-            $current = array_values(array_diff($current, [$productId]));
-        } else {
-            $current[] = $productId;
+        $favoritesLock = fopen(FAVORITES_LOCK_FILE, 'c');
+        if ($favoritesLock === false) {
+            throw new RuntimeException('Could not open the favorites lock file.');
         }
-        $favoritesBySize[$postedSize] = $current;
-        save_favorites($favoritesBySize);
+        if (!flock($favoritesLock, LOCK_EX)) {
+            fclose($favoritesLock);
+            throw new RuntimeException('Could not lock the favorites file.');
+        }
+        try {
+            $favoritesBySize = load_favorites();
+            $current = $favoritesBySize[$postedSize] ?? [];
+            $current = array_values(array_unique(array_filter($current, 'is_string')));
+            if (in_array($productId, $current, true)) {
+                $current = array_values(array_diff($current, [$productId]));
+            } else {
+                $current[] = $productId;
+            }
+            $favoritesBySize[$postedSize] = $current;
+            save_favorites($favoritesBySize);
+        } finally {
+            flock($favoritesLock, LOCK_UN);
+            fclose($favoritesLock);
+        }
 
         $redirectPeriod = in_array((string)($_POST['period'] ?? ''), ['all', '7', '30', '90'], true)
             ? (string)$_POST['period']

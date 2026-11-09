@@ -1,3 +1,5 @@
 .venv
 export
 __pycache__
+.bandjes-api-config.php
+secrets
