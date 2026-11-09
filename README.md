@@ -20,12 +20,34 @@ The standard-library Python script collects prices for one or more sizes from
 waits ten seconds between pages and sizes by default, and stops without retrying
 if the site returns a blocking or rate-limit response.
 
-For a separate collector that writes to PostgreSQL, see
+For a separate collector that publishes to PostgreSQL, see
 [collector/README.md](collector/README.md). It uses the same product collection
-behavior, but the existing PHP endpoints and dashboards continue to use SQLite.
+behavior and sends observations to the authenticated HTTPS collector endpoint.
 
 There is no fixed size limit per run. Larger collection requests require more
 page requests and increase the risk of the site blocking further requests.
+
+## Choose a data store and dashboard
+
+The project has two independent collection and storage paths. Choose a
+collector first, then use a dashboard or app that reads from that store:
+
+| Setup | Collection and storage | Dashboard or app |
+|---|---|---|
+| Local SQLite | [`scrape_prices.py`](scrape_prices.py) writes to `tyre_prices.sqlite3`. | [`dashboard.py`](dashboard.py) or the [local PHP dashboard](dashboard-php/README.md) reads the SQLite database. |
+| Remote PostgreSQL | [`collector/scrape_prices.py`](collector/README.md) publishes observations over HTTPS to `dashboard-php-public/collector.php`, which writes to PostgreSQL. | The [published dashboard](https://betyre.alwaysdata.net/?filter=&favorites_only=0&size=180%2F55R17&period=all) and [public PHP dashboard setup](dashboard-php-public/README.md) read PostgreSQL. |
+
+The [Android app](android-app/README.md) is a client of a PHP JSON service; it
+does not collect prices or connect directly to either database. Point it to
+[`service-php/service.php`](service-php/README.md) to read SQLite, or to
+`dashboard-php-public/service.php` to read PostgreSQL. Its default service URL
+is the hosted PostgreSQL service. Android favorites are stored on the device.
+
+The Python and local PHP dashboards use SQLite; they do not read PostgreSQL.
+Likewise, the PostgreSQL PHP dashboard does not read the SQLite file. The
+database is not copied or synchronized between these setups. See each linked
+README for setup and deployment details. The PHP dashboards do not collect
+prices; run the matching collector separately.
 
 ```sh
 python3 scrape_prices.py --sizes 90/90R21 140/80R18 150/70R18
