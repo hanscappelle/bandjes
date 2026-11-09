@@ -35,6 +35,15 @@ show only favorite tyres; it combines with the text filter. Favorites and
 their price history use the app's local selections. Results are ordered by
 latest price, lowest first.
 
+In settings, enable **Notify on price drops** to schedule local alerts for
+favorite tyres. Changes to the percentage drop threshold and the frequency
+(once or twice per day) are saved automatically. The app compares each
+favorite's latest price with its price at the previous check; the first check
+establishes a baseline and does not alert.
+Checks require network access, and Android may delay them for battery
+management, so they are not exact-time alarms. Android 13 and newer require
+notification permission.
+
 ## Build requirements
 
 - JDK 17.

@@ -1,11 +1,16 @@
 package be.bandjes.app
 
+import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -41,6 +46,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +63,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -68,8 +77,9 @@ import java.net.URL
 import java.net.URLEncoder
 import java.text.NumberFormat
 import java.util.Locale
+import androidx.compose.ui.graphics.toArgb
 
-private const val DEFAULT_SERVICE_URL = "https://betyre.alwaysdata.net/service.php"
+internal const val DEFAULT_SERVICE_URL = "https://betyre.alwaysdata.net/service.php"
 private const val REPOSITORY_URL = "https://github.com/hanscappelle/bandjes"
 private val Accent = Color(0xFF176B55)
 private val ChartColors = listOf(
@@ -86,6 +96,14 @@ class MainActivity : ComponentActivity() {
         val preferences = getSharedPreferences("bandjes", MODE_PRIVATE)
         preferences.edit().remove("encrypted_api_token").apply()
         val favoriteStore = FavoriteStore(preferences)
+        val priceAlertsEnabled = preferences.getBoolean("price_alert_enabled", false)
+        val priceAlertChecksPerDay = normalizePriceAlertChecksPerDay(
+            preferences.getInt("price_alert_checks_per_day", 2),
+        )
+        preferences.edit().putInt("price_alert_checks_per_day", priceAlertChecksPerDay).apply()
+        if (priceAlertsEnabled) {
+            PriceAlertScheduler.configure(this, true, priceAlertChecksPerDay)
+        }
         setContent {
             val systemDarkMode = isSystemInDarkTheme()
             var darkMode by rememberSaveable {
@@ -96,6 +114,18 @@ class MainActivity : ComponentActivity() {
                         systemDarkMode
                     },
                 )
+            }
+            SideEffect {
+                window.navigationBarColor = if (darkMode) {
+                    Color(0xFF121212).toArgb()
+                } else {
+                    Color.White.toArgb()
+                }
+                WindowInsetsControllerCompat(window, window.decorView)
+                    .isAppearanceLightNavigationBars = !darkMode
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    window.isNavigationBarContrastEnforced = false
+                }
             }
             MaterialTheme(
                 colorScheme = if (darkMode) darkColorScheme(primary = Color(0xFF81CBB2))
@@ -117,6 +147,17 @@ class MainActivity : ComponentActivity() {
                         preferences.edit().putString("default_size", it).apply()
                     },
                     favoriteStore = favoriteStore,
+                    savedAlertEnabled = preferences.getBoolean("price_alert_enabled", false),
+                    savedAlertThreshold = preferences.getFloat("price_alert_threshold", 5f),
+                    savedAlertChecksPerDay = priceAlertChecksPerDay,
+                    savePriceAlertSettings = { enabled, threshold, checksPerDay ->
+                        preferences.edit()
+                            .putBoolean("price_alert_enabled", enabled)
+                            .putFloat("price_alert_threshold", threshold)
+                            .putInt("price_alert_checks_per_day", checksPerDay)
+                            .apply()
+                        PriceAlertScheduler.configure(this, enabled, checksPerDay)
+                    },
                     darkMode = darkMode,
                     saveDarkMode = {
                         darkMode = it
@@ -128,7 +169,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class TyrePrice(
+internal data class TyrePrice(
     val productId: String,
     val name: String,
     val size: String,
@@ -138,14 +179,14 @@ private data class TyrePrice(
     val favorite: Boolean,
 )
 
-private data class Summary(
+internal data class Summary(
     val tyreCount: Int,
     val lowestPrice: Double?,
     val medianPrice: Double?,
     val latestCollection: String?,
 )
 
-private data class DashboardData(
+internal data class DashboardData(
     val sizes: List<String>,
     val selectedSize: String?,
     val latestPrices: List<TyrePrice>,
@@ -153,7 +194,7 @@ private data class DashboardData(
     val summary: Summary,
 )
 
-private class FavoriteStore(
+internal class FavoriteStore(
     private val preferences: android.content.SharedPreferences,
 ) {
     fun read(size: String): Set<String> =
@@ -172,7 +213,30 @@ private class FavoriteStore(
         preferences.edit().putStringSet(preferenceKey(size), productIds.toSet()).apply()
     }
 
+    fun allFavoritesBySize(): Map<String, Set<String>> =
+        preferences.all.keys
+            .filter { it.startsWith(FAVORITE_PRODUCT_IDS_PREFIX) }
+            .associate { key ->
+                key.removePrefix(FAVORITE_PRODUCT_IDS_PREFIX) to
+                    (preferences.getStringSet(key, null)?.toSet().orEmpty())
+            }
+
+    fun setPriceBaseline(productId: String, price: Double?) {
+        val editor = preferences.edit()
+        if (price == null) {
+            editor.remove(priceBaselineKey(productId))
+        } else {
+            editor.putString(priceBaselineKey(productId), price.toString())
+        }
+        editor.apply()
+    }
+
     private fun preferenceKey(size: String) = "favorite_product_ids:$size"
+
+    companion object {
+        const val FAVORITE_PRODUCT_IDS_PREFIX = "favorite_product_ids:"
+        fun priceBaselineKey(productId: String) = "alert_last_price:$productId"
+    }
 }
 
 private fun parseDashboard(json: String): DashboardData {
@@ -217,7 +281,7 @@ private fun parseDashboard(json: String): DashboardData {
     )
 }
 
-private suspend fun fetchDashboard(
+internal suspend fun fetchDashboard(
     endpoint: String,
     size: String?,
     period: String,
@@ -269,6 +333,10 @@ private fun Dashboard(
     savedDefaultSize: String,
     saveDefaultSize: (String) -> Unit,
     favoriteStore: FavoriteStore,
+    savedAlertEnabled: Boolean,
+    savedAlertThreshold: Float,
+    savedAlertChecksPerDay: Int,
+    savePriceAlertSettings: (Boolean, Float, Int) -> Unit,
     darkMode: Boolean,
     saveDarkMode: (Boolean) -> Unit,
 ) {
@@ -283,10 +351,41 @@ private fun Dashboard(
     var favoriteIds by remember(selectedSize) {
         mutableStateOf(favoriteStore.read(selectedSize))
     }
+    var alertEnabled by rememberSaveable { mutableStateOf(savedAlertEnabled) }
+    var alertThreshold by rememberSaveable {
+        mutableStateOf(savedAlertThreshold.toString())
+    }
+    var alertChecksPerDay by rememberSaveable {
+        mutableStateOf(normalizePriceAlertChecksPerDay(savedAlertChecksPerDay).toString())
+    }
+    var alertSettingsMessage by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (!granted) {
+            error = "Allow notifications in Android settings to receive price alerts."
+        }
+    }
+
+    fun persistAlertSettings(enabled: Boolean): Boolean {
+        val threshold = alertThreshold.toFloatOrNull()
+        if (threshold == null || threshold <= 0f || threshold > 100f) {
+            alertSettingsMessage = "Enter a drop threshold greater than 0 and at most 100%."
+            return false
+        }
+        val checks = alertChecksPerDay.toIntOrNull()
+        if (checks == null || checks !in 1..2) {
+            alertSettingsMessage = "Choose once or twice per day."
+            return false
+        }
+        savePriceAlertSettings(enabled, threshold, checks)
+        alertSettingsMessage = null
+        return true
+    }
 
     fun refresh(size: String? = selectedSize.takeIf { it.isNotBlank() }) {
         loading = true
@@ -419,6 +518,90 @@ private fun Dashboard(
                                 refresh(newDefaultSize)
                             }
                         }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Favorite price alerts",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Notify on price drops", modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = alertEnabled,
+                            onCheckedChange = { enabled ->
+                                if (!enabled) {
+                                    alertEnabled = false
+                                    savePriceAlertSettings(
+                                        false,
+                                        savedAlertThreshold,
+                                        normalizePriceAlertChecksPerDay(savedAlertChecksPerDay),
+                                    )
+                                    alertSettingsMessage = null
+                                } else if (persistAlertSettings(true)) {
+                                    alertEnabled = true
+                                    if (
+                                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                                        PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        notificationPermissionLauncher.launch(
+                                            Manifest.permission.POST_NOTIFICATIONS,
+                                        )
+                                    }
+                                } else {
+                                    alertEnabled = false
+                                }
+                            },
+                        )
+                    }
+                    Text(
+                        "Alert when a favorite's price drops by at least this percentage since the previous check.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = alertThreshold,
+                        onValueChange = {
+                            alertThreshold = it
+                            persistAlertSettings(alertEnabled)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Price drop threshold (%)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                    )
+                    FilterDropdown(
+                        label = "Checks per day",
+                        value = alertChecksPerDay,
+                        options = listOf("1", "2"),
+                        labels = mapOf("1" to "Once per day", "2" to "Twice per day"),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        alertChecksPerDay = it
+                        persistAlertSettings(alertEnabled)
+                    }
+                    alertSettingsMessage?.let { message ->
+                        Text(
+                            message,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Text(
+                        "Alert settings save automatically when changed.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (alertEnabled) {
+                        Text(
+                            "Checks are scheduled by Android and may be delayed by battery or network restrictions.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                     Spacer(Modifier.height(8.dp))
                     Button(
@@ -587,6 +770,10 @@ private fun Dashboard(
                                 favoriteIds + tyre.productId
                             }
                             favoriteStore.write(selectedSize, updatedFavoriteIds)
+                            favoriteStore.setPriceBaseline(
+                                tyre.productId,
+                                if (tyre.favorite) null else tyre.price,
+                            )
                             favoriteIds = updatedFavoriteIds
                             error = null
                         },

@@ -12,12 +12,13 @@ For the public dashboard favourites are stored in a browser session cookie so no
 
 For the App there is local android system storage (preferences) used to keep these favourites in place. Removing storage from app or clean install of the app will also remove your personal favourites. 
 
-## Warning !!
-
-Bandenleader is blocking after too many requests, still looking into this.
-For now this has been fixed with a delay, keep the delay between requests. 
-
 ## Daily price collection
+
+```
+Warning !!
+
+Bandenleader is blocking after too many requests, still looking into this. For now this has been fixed with a delay, keep the delay between requests. 
+```
 
 The standard-library Python script collects prices for one or more sizes from
 `common_motorcycle_tyre_sizes.csv` and stores daily observations in
