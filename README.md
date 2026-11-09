@@ -5,9 +5,12 @@ Scripts and Dashboard to collect tyres prices over time for a specific set of ty
 Check for example: https://www.bandenleader.be/motor-band-150-70-18/
 Optionally add ?p=2 and more for next pages, script will automatically traverse pagination when found. 
 
+![Price history dashboard screenshot](assets/Screenshot%202026-11-08%20at%2015.02.28.png)
+
 # Warning !!
 
 Bandenleader is blocking after too many requests, still looking into this.
+For now this has been fixed with a delay, keep the delay between requests. 
 
 ## Daily price collection
 
@@ -16,6 +19,10 @@ The standard-library Python script collects prices for one or more sizes from
 `tyre_prices.sqlite3`. It follows pagination until no next page is available,
 waits ten seconds between pages and sizes by default, and stops without retrying
 if the site returns a blocking or rate-limit response.
+
+For a separate collector that writes to PostgreSQL, see
+[collector/README.md](collector/README.md). It uses the same product collection
+behavior, but the existing PHP endpoints and dashboards continue to use SQLite.
 
 There is no fixed size limit per run. Larger collection requests require more
 page requests and increase the risk of the site blocking further requests.

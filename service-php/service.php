@@ -6,7 +6,6 @@ header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
 const ROOT = __DIR__ . '/..';
-const FAVORITES_FILE = ROOT . '/dashboard-php/favorites.json';
 
 function respond(array $payload, int $status = 200): void
 {
@@ -43,7 +42,7 @@ function load_common_sizes(): array
     }
 
     try {
-        $header = fgetcsv($file);
+        $header = fgetcsv($file, null, ',', '"', '\\');
         if ($header === false) {
             throw new RuntimeException('The common tyre sizes CSV is empty.');
         }
@@ -54,7 +53,7 @@ function load_common_sizes(): array
         }
 
         $sizes = [];
-        while (($row = fgetcsv($file)) !== false) {
+        while (($row = fgetcsv($file, null, ',', '"', '\\')) !== false) {
             $size = normalize_size((string)($row[$indexes['size']] ?? ''));
             if ($size !== null) {
                 $sizes[$size] = (string)($row[$indexes['position']] ?? '');
@@ -65,38 +64,6 @@ function load_common_sizes(): array
     } finally {
         fclose($file);
     }
-}
-
-function load_favorites(): array
-{
-    if (!is_file(FAVORITES_FILE)) {
-        return [];
-    }
-    if (!is_readable(FAVORITES_FILE)) {
-        throw new RuntimeException('The favorites file is not readable.');
-    }
-
-    $contents = file_get_contents(FAVORITES_FILE);
-    if ($contents === false) {
-        throw new RuntimeException('Could not read the favorites file.');
-    }
-    $favorites = json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
-    if (!is_array($favorites)) {
-        throw new RuntimeException('The favorites file has an invalid format.');
-    }
-
-    foreach ($favorites as $size => $productIds) {
-        if (!is_string($size) || !is_array($productIds)) {
-            throw new RuntimeException('The favorites file has an invalid format.');
-        }
-        foreach ($productIds as $productId) {
-            if (!is_string($productId)) {
-                throw new RuntimeException('The favorites file has an invalid format.');
-            }
-        }
-    }
-
-    return $favorites;
 }
 
 function db_connection(): PDO
@@ -161,7 +128,6 @@ if (isset($_GET['period']) && !is_string($_GET['period'])) {
     respond(['error' => 'The period parameter must be a single value.'], 400);
     exit;
 }
-
 try {
     $commonSizes = load_common_sizes();
     $connection = db_connection();
@@ -232,9 +198,6 @@ try {
         $history = $statement->fetchAll();
     }
 
-    $favoritesBySize = load_favorites();
-    $favoriteIds = $favoritesBySize[$selectedSize] ?? [];
-    $favoriteLookup = array_fill_keys($favoriteIds, true);
     $latestByProduct = [];
     $latestTimestamp = null;
     $oldestTimestamp = null;
@@ -242,7 +205,6 @@ try {
         $row['product_id'] = (string)$row['product_id'];
         $row['size'] = normalize_size((string)$row['size']);
         $row['price_eur'] = (float)$row['price_eur'];
-        $row['favorite'] = isset($favoriteLookup[$row['product_id']]);
         $latestByProduct[$row['product_id']] = $row;
         $timestamp = strtotime((string)$row['observed_at']);
         if ($timestamp !== false) {
@@ -269,16 +231,13 @@ try {
     $cutoff = $period === 'all' || $latestTimestamp === null
         ? null
         : $latestTimestamp - ((int)$period * 86400);
-    $favoriteHistory = [];
+    $filteredHistory = [];
     foreach ($history as $row) {
-        if (!isset($favoriteLookup[$row['product_id']])) {
-            continue;
-        }
         $timestamp = strtotime((string)$row['observed_at']);
         if ($timestamp === false || ($cutoff !== null && $timestamp < $cutoff)) {
             continue;
         }
-        $favoriteHistory[] = $row;
+        $filteredHistory[] = $row;
     }
 
     respond([
@@ -303,13 +262,7 @@ try {
                 : date('Y-m-d H:i:s', $latestTimestamp),
         ],
         'latest_prices' => $latestPrices,
-        'favorites' => array_values(array_filter(
-            $latestPrices,
-            static function (array $row): bool {
-                return $row['favorite'];
-            }
-        )),
-        'history' => $favoriteHistory,
+        'history' => $filteredHistory,
     ]);
 } catch (PDOException $error) {
     error_log('Price service database error: ' . $error->getMessage());

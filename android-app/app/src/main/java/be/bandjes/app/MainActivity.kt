@@ -4,8 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Canvas
@@ -36,9 +34,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -54,7 +54,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
@@ -63,19 +62,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONException
 import org.json.JSONObject
-import java.security.KeyStore
 import java.text.ParseException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.text.NumberFormat
-import java.util.Base64
 import java.util.Locale
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
 
+private const val DEFAULT_SERVICE_URL = "https://betyre.alwaysdata.net/service.php"
+private const val REPOSITORY_URL = "https://github.com/hanscappelle/bandjes"
 private val Accent = Color(0xFF176B55)
 private val ChartColors = listOf(
     Color(0xFF176B55),
@@ -89,8 +84,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val preferences = getSharedPreferences("bandjes", MODE_PRIVATE)
-        val tokenStore = ApiTokenStore(preferences)
-        val savedApiToken = tokenStore.read()
+        preferences.edit().remove("encrypted_api_token").apply()
+        val favoriteStore = FavoriteStore(preferences)
         setContent {
             val systemDarkMode = isSystemInDarkTheme()
             var darkMode by rememberSaveable {
@@ -107,14 +102,21 @@ class MainActivity : ComponentActivity() {
                 else lightColorScheme(primary = Accent),
             ) {
                 Dashboard(
-                    savedEndpoint = preferences.getString("endpoint", "").orEmpty(),
-                    saveEndpoint = { preferences.edit().putString("endpoint", it).apply() },
+                    savedEndpoint = preferences.getString("endpoint", "")
+                        .orEmpty()
+                        .ifBlank { DEFAULT_SERVICE_URL },
+                    saveEndpoint = {
+                        if (it.isBlank() || it == DEFAULT_SERVICE_URL) {
+                            preferences.edit().remove("endpoint").apply()
+                        } else {
+                            preferences.edit().putString("endpoint", it).apply()
+                        }
+                    },
                     savedDefaultSize = preferences.getString("default_size", "").orEmpty(),
                     saveDefaultSize = {
                         preferences.edit().putString("default_size", it).apply()
                     },
-                    savedApiToken = savedApiToken,
-                    saveApiToken = tokenStore::write,
+                    favoriteStore = favoriteStore,
                     darkMode = darkMode,
                     saveDarkMode = {
                         darkMode = it
@@ -145,65 +147,32 @@ private data class Summary(
 
 private data class DashboardData(
     val sizes: List<String>,
+    val selectedSize: String?,
     val latestPrices: List<TyrePrice>,
     val history: List<TyrePrice>,
     val summary: Summary,
 )
 
-private class ApiTokenStore(
+private class FavoriteStore(
     private val preferences: android.content.SharedPreferences,
 ) {
-    private val keyAlias = "bandjes_api_token_key"
-    private val tokenPreference = "encrypted_api_token"
+    fun read(size: String): Set<String> =
+        preferences.getStringSet(preferenceKey(size), null)?.toSet().orEmpty()
 
-    fun read(): String {
-        val stored = preferences.getString(tokenPreference, null) ?: return ""
-        val parts = stored.split('.', limit = 2)
-        require(parts.size == 2) { "The saved API token is invalid; clear and re-enter it in settings." }
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(
-            Cipher.DECRYPT_MODE,
-            encryptionKey(),
-            GCMParameterSpec(128, Base64.getDecoder().decode(parts[0])),
-        )
-        return String(Base64.getDecoder().decode(parts[1]).let(cipher::doFinal), Charsets.UTF_8)
+    fun loadOrInitialize(size: String): Set<String> {
+        val key = preferenceKey(size)
+        val stored = preferences.getStringSet(key, null)
+        if (stored != null) return stored.toSet()
+
+        preferences.edit().putStringSet(key, emptySet()).apply()
+        return emptySet()
     }
 
-    fun write(token: String) {
-        if (token.isBlank()) {
-            preferences.edit().remove(tokenPreference).apply()
-            return
-        }
-
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, encryptionKey())
-        val iv = Base64.getEncoder().withoutPadding().encodeToString(cipher.iv)
-        val ciphertext = Base64.getEncoder().withoutPadding()
-            .encodeToString(cipher.doFinal(token.toByteArray(Charsets.UTF_8)))
-        preferences.edit().putString(tokenPreference, "$iv.$ciphertext").apply()
+    fun write(size: String, productIds: Set<String>) {
+        preferences.edit().putStringSet(preferenceKey(size), productIds.toSet()).apply()
     }
 
-    private fun encryptionKey(): SecretKey {
-        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        if (!keyStore.containsAlias(keyAlias)) {
-            val generator = KeyGenerator.getInstance(
-                KeyProperties.KEY_ALGORITHM_AES,
-                "AndroidKeyStore",
-            )
-            generator.init(
-                KeyGenParameterSpec.Builder(
-                    keyAlias,
-                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
-                )
-                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                    .setRandomizedEncryptionRequired(true)
-                    .build(),
-            )
-            generator.generateKey()
-        }
-        return keyStore.getKey(keyAlias, null) as SecretKey
-    }
+    private fun preferenceKey(size: String) = "favorite_product_ids:$size"
 }
 
 private fun parseDashboard(json: String): DashboardData {
@@ -224,7 +193,7 @@ private fun parseDashboard(json: String): DashboardData {
                 price = row.getDouble("price_eur"),
                 observedAt = row.getString("observed_at"),
                 url = row.optString("url"),
-                favorite = row.optBoolean("favorite"),
+                favorite = false,
             )
         }
     }
@@ -233,6 +202,8 @@ private fun parseDashboard(json: String): DashboardData {
     val lowest = summaryJson.optJSONObject("lowest_latest_price")
     return DashboardData(
         sizes = sizes,
+        selectedSize = root.getJSONObject("filters").optString("size")
+            .takeUnless { it == "null" || it.isBlank() },
         latestPrices = parsePrices("latest_prices"),
         history = parsePrices("history"),
         summary = Summary(
@@ -290,66 +261,6 @@ private suspend fun fetchDashboard(
     }
 }
 
-private suspend fun setFavorite(
-    endpoint: String,
-    token: String,
-    size: String,
-    productId: String,
-    favorite: Boolean,
-) = withContext(Dispatchers.IO) {
-    require(token.isNotBlank()) { "Set the favorite API token in settings to update favorites." }
-    val base = URL(endpoint)
-    require(
-        base.protocol == "https" &&
-            !base.host.isNullOrBlank() &&
-            (base.path == "service.php" || base.path.endsWith("/service.php")) &&
-            base.ref == null
-    ) {
-        "Enter a valid HTTPS URL ending in service.php."
-    }
-
-    val connection = URL(base, "service-fav.php").openConnection() as HttpURLConnection
-    try {
-        connection.requestMethod = "POST"
-        connection.doOutput = true
-        connection.connectTimeout = 10_000
-        connection.readTimeout = 10_000
-        connection.setRequestProperty("Accept", "application/json")
-        connection.setRequestProperty("Authorization", "Bearer $token")
-        connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-        val requestBody = JSONObject()
-            .put("size", size)
-            .put("product_id", productId)
-            .put("favorite", favorite)
-            .toString()
-        connection.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(requestBody) }
-
-        val status = connection.responseCode
-        val body = (if (status in 200..299) connection.inputStream else connection.errorStream)
-            ?.bufferedReader()
-            ?.use { it.readText() }
-            .orEmpty()
-        if (status !in 200..299) {
-            val message = try {
-                JSONObject(body).optString("error")
-            } catch (_: JSONException) {
-                ""
-            }
-            throw IllegalStateException(message.ifBlank { "Service returned HTTP $status." })
-        }
-        val response = JSONObject(body)
-        check(
-            response.optString("product_id") == productId &&
-                response.optString("size") == size &&
-                response.optBoolean("favorite") == favorite
-        ) {
-            "The service returned an unexpected favorite update result."
-        }
-    } finally {
-        connection.disconnect()
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Dashboard(
@@ -357,13 +268,11 @@ private fun Dashboard(
     saveEndpoint: (String) -> Unit,
     savedDefaultSize: String,
     saveDefaultSize: (String) -> Unit,
-    savedApiToken: String,
-    saveApiToken: (String) -> Unit,
+    favoriteStore: FavoriteStore,
     darkMode: Boolean,
     saveDarkMode: (Boolean) -> Unit,
 ) {
     var endpoint by rememberSaveable { mutableStateOf(savedEndpoint) }
-    var apiToken by rememberSaveable { mutableStateOf(savedApiToken) }
     var defaultSize by rememberSaveable { mutableStateOf(savedDefaultSize) }
     var showSettings by remember { mutableStateOf(savedEndpoint.isBlank()) }
     var selectedSize by rememberSaveable { mutableStateOf(savedDefaultSize) }
@@ -371,16 +280,17 @@ private fun Dashboard(
     var latestPriceFilter by rememberSaveable { mutableStateOf("") }
     var favoritesOnly by rememberSaveable { mutableStateOf(false) }
     var data by remember { mutableStateOf<DashboardData?>(null) }
+    var favoriteIds by remember(selectedSize) {
+        mutableStateOf(favoriteStore.read(selectedSize))
+    }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var updatingProducts by remember { mutableStateOf(emptySet<String>()) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
     fun refresh(size: String? = selectedSize.takeIf { it.isNotBlank() }) {
         loading = true
         error = null
-        saveApiToken(apiToken.trim())
         scope.launch {
             try {
                 var result = fetchDashboard(endpoint.trim(), size, selectedPeriod)
@@ -393,7 +303,16 @@ private fun Dashboard(
                 }
                 data = result
                 if (selectedSize !in result.sizes && result.sizes.isNotEmpty()) {
-                    selectedSize = result.sizes.first()
+                    selectedSize = result.selectedSize
+                        ?.takeIf { it in result.sizes }
+                        ?: result.sizes.first()
+                }
+                val loadedSize = result.selectedSize
+                    ?.takeIf { it in result.sizes }
+                    ?: selectedSize
+                if (loadedSize.isNotBlank()) {
+                    selectedSize = loadedSize
+                    favoriteIds = favoriteStore.loadOrInitialize(loadedSize)
                 }
                 saveEndpoint(endpoint.trim())
                 showSettings = false
@@ -425,15 +344,25 @@ private fun Dashboard(
             )
         },
     ) { padding ->
-        LazyColumn(
+        PullToRefreshBox(
+            isRefreshing = loading,
+            onRefresh = {
+                if (!loading && endpoint.isNotBlank()) {
+                    refresh()
+                }
+            },
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(padding),
         ) {
-            if (showSettings || endpoint.isBlank()) {
-                item {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (showSettings || endpoint.isBlank()) {
+                    item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -444,17 +373,32 @@ private fun Dashboard(
                             onCheckedChange = saveDarkMode,
                         )
                     }
-                    OutlinedTextField(
-                        value = endpoint,
-                        onValueChange = {
-                            endpoint = it
-                            selectedSize = ""
-                        },
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Service URL") },
-                        placeholder = { Text("https://example.com/service.php") },
-                        singleLine = true,
-                    )
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedTextField(
+                            value = endpoint,
+                            onValueChange = {
+                                endpoint = it
+                                selectedSize = ""
+                            },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Service URL") },
+                            placeholder = { Text("https://example.com/service.php") },
+                            singleLine = true,
+                        )
+                        TextButton(
+                            onClick = {
+                                endpoint = DEFAULT_SERVICE_URL
+                                selectedSize = ""
+                                saveEndpoint("")
+                            },
+                            enabled = endpoint != DEFAULT_SERVICE_URL,
+                        ) {
+                            Text("Use default")
+                        }
+                    }
                     val availableSizes = data?.sizes.orEmpty()
                     if (availableSizes.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
@@ -477,21 +421,26 @@ private fun Dashboard(
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = apiToken,
-                        onValueChange = { apiToken = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Favorite API token") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true,
-                    )
-                    Spacer(Modifier.height(8.dp))
                     Button(
                         onClick = { refresh() },
                         enabled = !loading && endpoint.isNotBlank(),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(if (loading) "Loading…" else "Load prices")
+                    }
+                    TextButton(
+                        onClick = {
+                            try {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(REPOSITORY_URL)),
+                                )
+                            } catch (_: ActivityNotFoundException) {
+                                error = "No app is available to open the GitHub repository."
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Feature requests and bug reports")
                     }
                 }
             }
@@ -508,6 +457,9 @@ private fun Dashboard(
 
             val current = data
             if (current != null) {
+                val latestPrices = current.latestPrices.map { tyre ->
+                    tyre.copy(favorite = tyre.productId in favoriteIds)
+                }
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterDropdown(
@@ -546,7 +498,7 @@ private fun Dashboard(
                     )
                 }
                 item {
-                    FavoriteChart(current.history)
+                    FavoriteChart(current.history.filter { it.productId in favoriteIds })
                 }
                 item {
                     SummaryCards(current.summary)
@@ -589,7 +541,7 @@ private fun Dashboard(
                         }
                     }
                 }
-                val visiblePrices = current.latestPrices.filter { tyre ->
+                val visiblePrices = latestPrices.filter { tyre ->
                     val query = latestPriceFilter.trim()
                     (!favoritesOnly || tyre.favorite) &&
                         (query.isEmpty() || listOf(
@@ -612,7 +564,6 @@ private fun Dashboard(
                 items(visiblePrices, key = { it.productId }) { tyre ->
                     PriceRow(
                         tyre = tyre,
-                        updating = tyre.productId in updatingProducts,
                         onOpenProduct = {
                             val productUri = Uri.parse(tyre.url)
                             if (productUri.scheme !in setOf("http", "https")
@@ -630,33 +581,14 @@ private fun Dashboard(
                             }
                         },
                         onToggleFavorite = {
-                            if (apiToken.isBlank()) {
-                                error = "Set the favorite API token in settings to update favorites."
+                            val updatedFavoriteIds = if (tyre.favorite) {
+                                favoriteIds - tyre.productId
                             } else {
-                                updatingProducts = updatingProducts + tyre.productId
-                                error = null
-                                scope.launch {
-                                    try {
-                                        setFavorite(
-                                            endpoint = endpoint.trim(),
-                                            token = apiToken.trim(),
-                                            size = selectedSize,
-                                            productId = tyre.productId,
-                                            favorite = !tyre.favorite,
-                                        )
-                                        data = fetchDashboard(
-                                            endpoint.trim(),
-                                            selectedSize,
-                                            selectedPeriod,
-                                        )
-                                    } catch (exception: Exception) {
-                                        error = exception.message
-                                            ?: "Could not update this favorite."
-                                    } finally {
-                                        updatingProducts = updatingProducts - tyre.productId
-                                    }
-                                }
+                                favoriteIds + tyre.productId
                             }
+                            favoriteStore.write(selectedSize, updatedFavoriteIds)
+                            favoriteIds = updatedFavoriteIds
+                            error = null
                         },
                     )
                 }
@@ -669,6 +601,7 @@ private fun Dashboard(
                 }
             }
             item { Spacer(Modifier.height(16.dp)) }
+        }
         }
     }
 }
@@ -756,7 +689,6 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
 @Composable
 private fun PriceRow(
     tyre: TyrePrice,
-    updating: Boolean,
     onOpenProduct: () -> Unit,
     onToggleFavorite: () -> Unit,
 ) {
@@ -764,7 +696,6 @@ private fun PriceRow(
         modifier = Modifier
             .fillMaxWidth()
             .combinedClickable(
-                enabled = !updating,
                 onClick = onOpenProduct,
                 onLongClick = onToggleFavorite,
             ),

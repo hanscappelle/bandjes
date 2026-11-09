@@ -47,7 +47,7 @@ function load_common_sizes(): array
         throw new RuntimeException('Could not open common_motorcycle_tyre_sizes.csv.');
     }
 
-    $header = fgetcsv($file);
+    $header = fgetcsv($file, null, ',', '"', '\\');
     if ($header === false) {
         fclose($file);
         throw new RuntimeException('The common tyre sizes CSV is empty.');
@@ -60,7 +60,7 @@ function load_common_sizes(): array
     }
 
     $sizes = [];
-    while (($row = fgetcsv($file)) !== false) {
+    while (($row = fgetcsv($file, null, ',', '"', '\\')) !== false) {
         $size = normalize_size((string)($row[$indexes['size']] ?? ''));
         if ($size !== null) {
             $sizes[$size] = (string)($row[$indexes['position']] ?? '');

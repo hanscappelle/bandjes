@@ -7,19 +7,23 @@ history.
 
 ## Run
 
-1. Deploy the `service-php` directory on a server with HTTPS enabled.
+1. Deploy the `service-php` directory on a server with HTTPS enabled. The app
+   needs the updated `service.php` to load history for device-local favorites.
 2. Open `android-app` in Android Studio and let it sync the Gradle project.
 3. Run the `app` configuration on an Android device or emulator.
-4. On first launch, enter the full HTTPS URL to `service.php`, for example
-   `https://prices.example.com/service.php`, and tap **Load prices**. The app
-   saves the URL and loads it automatically on future launches. Use the
-   settings button in the top bar to change the URL later.
+4. On first launch, the app uses `https://betyre.alwaysdata.net/service.php`
+   and loads prices automatically. Use the settings button in the top bar to
+   change the service URL; a saved custom URL takes precedence. Choose
+   **Use default** beside the URL field to clear the custom URL and revert to
+   the default service.
 
-The URL is saved locally on the device. To change favorites from the app,
-configure `BANDJES_API_TOKEN` on the PHP server and enter the same token in app
-settings. The token is encrypted using the Android Keystore. Favorite changes
-are shared with the web dashboard. The app requires Android 8.0 (API 26) or
-newer and does not trigger price collection.
+The URL is saved locally on the device. Favorites are saved on the device and
+are independent of favorites in the web dashboard. They are not sent to or
+loaded from the service.
+The app requires Android 8.0 (API 26) or newer and does not trigger price
+collection.
+Use **Feature requests and bug reports** in settings to open the public
+[GitHub repository](https://github.com/hanscappelle/bandjes).
 
 Choose a **Default tyre size** in settings to open the app on that size. If no
 default is selected, the app uses the service's first available size.
@@ -27,8 +31,9 @@ Use the **Dark mode** switch in settings to enable the dark color scheme; the
 choice is saved on the device.
 Tap a tyre tile to open its product page, or long-press it to toggle its
 favorite status. Turn on **Favorites only** above the latest-price list to
-show only favorite tyres; it combines with the text filter. Results are ordered
-by latest price, lowest first.
+show only favorite tyres; it combines with the text filter. Favorites and
+their price history use the app's local selections. Results are ordered by
+latest price, lowest first.
 
 ## Build requirements
 
