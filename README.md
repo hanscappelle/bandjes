@@ -100,6 +100,67 @@ The JSON response includes:
 - `history`: chronological price records with those same product and price
   fields, filtered by `period`.
 
+Example response (values are illustrative):
+
+```json
+{
+  "service": "bandjes-price-data",
+  "filters": {
+    "size": "90/90R21",
+    "period": "90"
+  },
+  "available_sizes": [
+    {
+      "size": "90/90R21",
+      "position": "Front"
+    }
+  ],
+  "summary": {
+    "tyre_count": 1,
+    "lowest_latest_price": {
+      "product_id": "1705415",
+      "name": "Example Motorcycle Tyre",
+      "size": "90/90R21",
+      "url": "https://www.bandenleader.be/example-tyre",
+      "observed_at": "2026-11-10 08:00:00",
+      "price_eur": 89.9
+    },
+    "median_latest_price_eur": 89.9,
+    "oldest_collection_date": "2026-08-12",
+    "latest_collection_date": "2026-11-10",
+    "last_collection_at": "2026-11-10 08:00:00"
+  },
+  "latest_prices": [
+    {
+      "product_id": "1705415",
+      "name": "Example Motorcycle Tyre",
+      "size": "90/90R21",
+      "url": "https://www.bandenleader.be/example-tyre",
+      "observed_at": "2026-11-10 08:00:00",
+      "price_eur": 89.9
+    }
+  ],
+  "history": [
+    {
+      "product_id": "1705415",
+      "name": "Example Motorcycle Tyre",
+      "size": "90/90R21",
+      "url": "https://www.bandenleader.be/example-tyre",
+      "observed_at": "2026-11-09 08:00:00",
+      "price_eur": 92.5
+    },
+    {
+      "product_id": "1705415",
+      "name": "Example Motorcycle Tyre",
+      "size": "90/90R21",
+      "url": "https://www.bandenleader.be/example-tyre",
+      "observed_at": "2026-11-10 08:00:00",
+      "price_eur": 89.9
+    }
+  ]
+}
+```
+
 Only `GET` is supported (other methods return HTTP 405). Invalid query
 parameters return HTTP 400; server or database configuration errors return
 HTTP 500. The API reads the hosted PostgreSQL data; for the SQLite service
