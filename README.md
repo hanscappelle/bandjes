@@ -1,68 +1,23 @@
 # Pricewatch for Motorcycle Tyres
 
-Scripts and Dashboard to collect tyres prices over time for a specific set of tyre sizes. Using bandenleader.be webshop as a single source. 
+Scripts and Dashboard to collect tyres prices over time for a specific set of tyre sizes. Using a Belgian tyre webshop hosted at bandenleader.be as a single source. 
 
 ![Price history dashboard screenshot](assets/Screenshot%202026-11-08%20at%2015.02.28.png)
 
-Public dashboard published at [https://betyre.alwaysdata.net/](https://betyre.alwaysdata.net/?filter=&favorites_only=0&size=180%2F55R17&period=all) Only a limited set of 5 tyre sizes are collected at this point. Put a request here if you want more or run the script locally for your specific setup. 
+Public dashboard published at [https://betyre.alwaysdata.net/](https://betyre.alwaysdata.net/?filter=&favorites_only=0&size=180%2F55R17&period=all) 
+
+This is a visualisation of data collected by the owner of this repo using the collector scripts. These run twice a day and are set up to register for 5 common tyre sizes. 
+
+Put a request here if you want more sizes or features. Or run the script locally for your specific setup. 
 
 ## Table of contents
 
+- [Public price API](#public-price-api)
 - [Favourites storage](#favourites-storage)
 - [Daily price collection](#daily-price-collection)
 - [Choose a data store and dashboard](#choose-a-data-store-and-dashboard)
-- [Public price API](#public-price-api)
 - [Schedule daily collection on Synology DSM](#schedule-daily-collection-on-synology-dsm)
 - [Local dashboard](#local-dashboard)
-
-## Favourites storage
-
-For the public dashboard favourites are stored in a browser session cookie so no login is required. However this way if you change browser, block cookies or clear cookies these can be lost. 
-
-For the App there is local android system storage (preferences) used to keep these favourites in place. Removing storage from app or clean install of the app will also remove your personal favourites. 
-
-## Daily price collection
-
-```
-Warning !!
-
-Bandenleader is blocking after too many requests, still looking into this. For now this has been fixed with a delay, keep the delay between requests. 
-```
-
-The standard-library Python script collects prices for one or more sizes from
-`common_motorcycle_tyre_sizes.csv` and stores daily observations in
-`tyre_prices.sqlite3`. It follows pagination until no next page is available,
-waits ten seconds between pages and sizes by default, and stops without retrying
-if the site returns a blocking or rate-limit response.
-
-For a separate collector that publishes to PostgreSQL, see
-[collector/README.md](collector/README.md). It uses the same product collection
-behavior and sends observations to the authenticated HTTPS collector endpoint.
-
-There is no fixed size limit per run. Larger collection requests require more
-page requests and increase the risk of the site blocking further requests.
-
-## Choose a data store and dashboard
-
-The project has two independent collection and storage paths. Choose a
-collector first, then use a dashboard or app that reads from that store:
-
-| Setup | Collection and storage | Dashboard or app |
-|---|---|---|
-| Local SQLite | [`scrape_prices.py`](scrape_prices.py) writes to `tyre_prices.sqlite3`. | [`dashboard.py`](dashboard.py) or the [local PHP dashboard](dashboard-php/README.md) reads the SQLite database. |
-| Remote PostgreSQL | [`collector/scrape_prices.py`](collector/README.md) publishes observations over HTTPS to `dashboard-php-public/collector.php`, which writes to PostgreSQL. | The [published dashboard](https://betyre.alwaysdata.net/?filter=&favorites_only=0&size=180%2F55R17&period=all) and [public PHP dashboard setup](dashboard-php-public/README.md) read PostgreSQL. |
-
-The [Android app](android-app/README.md) is a client of a PHP JSON service; it
-does not collect prices or connect directly to either database. Point it to
-[`service-php/service.php`](service-php/README.md) to read SQLite, or to
-`dashboard-php-public/service.php` to read PostgreSQL. Its default service URL
-is the hosted PostgreSQL service. Android favorites are stored on the device.
-
-The Python and local PHP dashboards use SQLite; they do not read PostgreSQL.
-Likewise, the PostgreSQL PHP dashboard does not read the SQLite file. The
-database is not copied or synchronized between these setups. See each linked
-README for setup and deployment details. The PHP dashboards do not collect
-prices; run the matching collector separately.
 
 ## Public price API
 
@@ -163,8 +118,29 @@ Example response (values are illustrative):
 
 Only `GET` is supported (other methods return HTTP 405). Invalid query
 parameters return HTTP 400; server or database configuration errors return
-HTTP 500. The API reads the hosted PostgreSQL data; for the SQLite service
-option, see [service-php/README.md](service-php/README.md).
+HTTP 500. 
+
+The API reads the hosted PostgreSQL data; the same data the public dashboard is visualising.
+
+## Favourites storage
+
+For the public dashboard favourites are stored in a browser session cookie so no login is required. However this way if you change browser, block cookies or clear cookies these can be lost. 
+
+For the App there is local android system storage (preferences) used to keep these favourites in place. Removing storage from app or clean install of the app will also remove your personal favourites. 
+
+## Daily price collection
+
+```
+Warning !!
+
+Bandenleader is blocking after too many requests, still looking into this. For now this has been fixed with a delay, keep the delay between requests. 
+```
+
+The standard-library Python script collects prices for one or more sizes from
+`common_motorcycle_tyre_sizes.csv` and stores daily observations in
+`tyre_prices.sqlite3`. It follows pagination until no next page is available,
+waits ten seconds between pages and sizes by default, and stops without retrying
+if the site returns a blocking or rate-limit response.
 
 ```sh
 python3 scrape_prices.py --sizes 90/90R21 140/80R18 150/70R18
@@ -180,6 +156,28 @@ different database, `--delay SECONDS` to change the wait between requests, or
 its local collection timestamp and Bandenleader product ID. Existing date-only
 observations are migrated to midnight when the scraper next runs; subsequent
 runs on the same day are stored separately.
+
+## Choose a data store and dashboard
+
+The project has two independent collection and storage paths. Choose a
+collector first, then use a dashboard or app that reads from that store:
+
+| Setup | Collection and storage | Dashboard or app |
+|---|---|---|
+| Local SQLite | [`scrape_prices.py`](scrape_prices.py) writes to `tyre_prices.sqlite3`. | [`dashboard.py`](dashboard.py) or the [local PHP dashboard](dashboard-php/README.md) reads the SQLite database. |
+| Remote PostgreSQL | [`collector/scrape_prices.py`](collector/README.md) publishes observations over HTTPS to `dashboard-php-public/collector.php`, which writes to PostgreSQL. | The [published dashboard](https://betyre.alwaysdata.net/?filter=&favorites_only=0&size=180%2F55R17&period=all) and [public PHP dashboard setup](dashboard-php-public/README.md) read PostgreSQL. |
+
+The [Android app](android-app/README.md) is a client of a PHP JSON service; it
+does not collect prices or connect directly to either database. Point it to
+[`service-php/service.php`](service-php/README.md) to read SQLite, or to
+`dashboard-php-public/service.php` to read PostgreSQL. Its default service URL
+is the hosted PostgreSQL service. Android favorites are stored on the device.
+
+The Python and local PHP dashboards use SQLite; they do not read PostgreSQL.
+Likewise, the PostgreSQL PHP dashboard does not read the SQLite file. The
+database is not copied or synchronized between these setups. See each linked
+README for setup and deployment details. The PHP dashboards do not collect
+prices; run the matching collector separately.
 
 ## Schedule daily collection on Synology DSM
 
