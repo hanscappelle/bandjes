@@ -6,6 +6,15 @@ Scripts and Dashboard to collect tyres prices over time for a specific set of ty
 
 Public dashboard published at [https://betyre.alwaysdata.net/](https://betyre.alwaysdata.net/?filter=&favorites_only=0&size=180%2F55R17&period=all) Only a limited set of 5 tyre sizes are collected at this point. Put a request here if you want more or run the script locally for your specific setup. 
 
+## Table of contents
+
+- [Favourites storage](#favourites-storage)
+- [Daily price collection](#daily-price-collection)
+- [Choose a data store and dashboard](#choose-a-data-store-and-dashboard)
+- [Public price API](#public-price-api)
+- [Schedule daily collection on Synology DSM](#schedule-daily-collection-on-synology-dsm)
+- [Local dashboard](#local-dashboard)
+
 ## Favourites storage
 
 For the public dashboard favourites are stored in a browser session cookie so no login is required. However this way if you change browser, block cookies or clear cookies these can be lost. 
