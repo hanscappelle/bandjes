@@ -395,8 +395,8 @@ private fun Dashboard(
             return false
         }
         val checks = alertChecksPerDay.toIntOrNull()
-        if (checks == null || checks !in 1..2) {
-            alertSettingsMessage = "Choose once or twice per day."
+        if (checks == null || checks !in 1..4 || checks == 3) {
+            alertSettingsMessage = "Choose once, twice, or four times per day."
             return false
         }
         savePriceAlertSettings(enabled, threshold, checks)
@@ -594,8 +594,12 @@ private fun Dashboard(
                     FilterDropdown(
                         label = "Checks per day",
                         value = alertChecksPerDay,
-                        options = listOf("1", "2"),
-                        labels = mapOf("1" to "Once per day", "2" to "Twice per day"),
+                        options = listOf("1", "2", "4"),
+                        labels = mapOf(
+                            "1" to "Once per day",
+                            "2" to "Twice per day",
+                            "4" to "Four times per day",
+                        ),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         alertChecksPerDay = it
@@ -1137,7 +1141,7 @@ private fun FavoriteChart(history: List<TyrePrice>) {
                         drawCircle(ChartColors[index % ChartColors.size])
                     }
                     Text(
-                        "${first.name} (${first.size})",
+                        first.name,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }

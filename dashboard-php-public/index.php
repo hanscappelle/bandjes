@@ -207,7 +207,8 @@ function render_chart(array $history, array $favorites, string $period): string
         if ($cutoff !== null && $timestamp < $cutoff) {
             continue;
         }
-        $series[$productId]['name'] = (string)$point['name'] . ' — ' . (string)$point['size'];
+        $series[$productId]['name'] = (string)$point['name'];
+        $series[$productId]['size'] = (string)$point['size'];
         $series[$productId]['product_id'] = $productId;
         $url = filter_var((string)$point['url'], FILTER_VALIDATE_URL);
         $scheme = $url === false ? '' : (string)parse_url($url, PHP_URL_SCHEME);
@@ -291,7 +292,7 @@ function render_chart(array $history, array $favorites, string $period): string
             $svg .= '<path class="series-line" stroke="' . $color . '" d="' . implode(' ', $path) . '"/>';
         }
         foreach ($coordinates as $coordinate) {
-            $tooltip = $entry['name'] . ' — ' . $coordinate[2]['label'] . ' — ' . format_price($coordinate[2]['price']);
+            $tooltip = $entry['name'] . ' (' . $entry['size'] . ') — ' . $coordinate[2]['label'] . ' — ' . format_price($coordinate[2]['price']);
             $svg .= '<circle class="point" cx="' . round($coordinate[0], 2) . '" cy="' . round($coordinate[1], 2) . '" r="4" fill="' . $color . '"><title>' . h($tooltip) . '</title></circle>';
         }
         $productNumber = '#' . h($entry['product_id']);

@@ -136,7 +136,8 @@ internal class PriceAlertWorker(
         )
         val lines = drops.map { drop ->
             val percentage = String.format(Locale.getDefault(), "%.1f%%", drop.percentage)
-            "${drop.tyre.name}: ${formatAlertPrice(drop.tyre.price)} (-$percentage)"
+            "${drop.tyre.size} · ${drop.tyre.name}: " +
+                "${formatAlertPrice(drop.tyre.price)} (-$percentage)"
         }
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
@@ -286,7 +287,7 @@ internal object PriceAlertScheduler {
 }
 
 internal fun normalizePriceAlertChecksPerDay(checksPerDay: Int): Int {
-    return checksPerDay.coerceIn(1, 2)
+    return checksPerDay.coerceIn(1, 4)
 }
 
 private fun formatAlertPrice(price: Double): String =

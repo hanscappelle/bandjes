@@ -55,6 +55,47 @@ database is not copied or synchronized between these setups. See each linked
 README for setup and deployment details. The PHP dashboards do not collect
 prices; run the matching collector separately.
 
+## Public price API
+
+The hosted read-only JSON API is available at
+[`https://betyre.alwaysdata.net/service.php`](https://betyre.alwaysdata.net/service.php).
+It supports unauthenticated `GET` requests and does not modify data. For
+example, request all history for a tyre size or limit its history to the last
+90 days:
+
+```sh
+curl 'https://betyre.alwaysdata.net/service.php'
+curl 'https://betyre.alwaysdata.net/service.php?size=90%2F90R21&period=90'
+```
+
+Query parameters are optional:
+
+- `size`: tyre size such as `90/90R21`. If omitted, the first available size
+  is selected. An unavailable size returns HTTP 400 and an `available_sizes`
+  list.
+- `period`: `all`, `7`, `30`, or `90`. Defaults to `all`; limits the
+  `history` array to that many days relative to its newest observation. The
+  `latest_prices` array remains the latest observation per product regardless
+  of this filter.
+
+The JSON response includes:
+
+- `service`: API identifier (`bandjes-price-data`).
+- `filters`: selected `size` and `period`.
+- `available_sizes`: objects with each available `size` and its `position`.
+- `summary`: `tyre_count`, `lowest_latest_price`, median latest price in EUR,
+  oldest and latest collection dates, and `last_collection_at`.
+- `latest_prices`: one latest record per product, sorted by price. Each record
+  includes `product_id`, `name`, `size`, `url`, `observed_at`, and numeric
+  `price_eur`.
+- `history`: chronological price records with those same product and price
+  fields, filtered by `period`.
+
+Only `GET` is supported (other methods return HTTP 405). Invalid query
+parameters return HTTP 400; server or database configuration errors return
+HTTP 500. The API reads the hosted PostgreSQL data; for the SQLite service
+option, see [service-php/README.md](service-php/README.md).
+
 ```sh
 python3 scrape_prices.py --sizes 90/90R21 140/80R18 150/70R18
 ```

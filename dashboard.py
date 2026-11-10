@@ -399,7 +399,7 @@ product_stats = (
     .sort_values(["observations", "name"], ascending=[False, True])
 )
 product_labels = {
-    row.product_id: f"{row.name} — {row.size} (#{row.product_id})"
+    row.product_id: f"{row.name} (#{row.product_id})"
     for row in product_stats.itertuples()
 }
 available_product_ids = product_stats["product_id"].tolist()
