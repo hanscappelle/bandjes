@@ -198,7 +198,7 @@ def load_size_history(connection, size):
 
 
 st.title("🏍️ Betyre Motorcycle Tyre Price Watch")
-st.caption("Dashboard for daily price history collected from bandenleader.be website (no affiliation). This is just the visualisation of the database. To populate this schedule the script somewhere. You can manually trigger it here for testing purposes. Project details at https://github.com/hanscappelle/bandjes. Add favourites from the results below to show over time and in comparison with each other.")
+st.caption("Dashboard for daily price history collected from bandenleader.be website (no affiliation). This is just the visualisation of the database. To populate this schedule the script somewhere. You can manually trigger it here for testing purposes. Project details at https://github.com/hanscappelle/betyre. Add favourites from the results below to show over time and in comparison with each other.")
 
 try:
     remembered_database_path = load_remembered_database_path()

@@ -16,7 +16,7 @@ The read-only JSON endpoint in `service.php` uses the same database settings
 and provides all price history to clients such as the Android app; favorite
 state is managed by each client.
 Use the **Feature requests and bug reports** link in the dashboard footer or
-visit the [public GitHub repository](https://github.com/hanscappelle/bandjes).
+visit the [public GitHub repository](https://github.com/hanscappelle/betyre).
 
 The `collector.php` endpoint accepts authenticated HTTPS POST requests from
 the NAS collector and inserts/upserts price observations. It uses

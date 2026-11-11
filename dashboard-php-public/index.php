@@ -648,7 +648,7 @@ if ($latest) {
     <footer>
         <span>Betyre Motorcycle Tyre Price Watch</span>
         <span>The database is read-only to this dashboard. Favourites are stored in session cookies.</span>
-        <a href="https://github.com/hanscappelle/bandjes" target="_blank" rel="noopener noreferrer">
+        <a href="https://github.com/hanscappelle/betyre" target="_blank" rel="noopener noreferrer">
             Feature requests and bug reports
         </a>
     </footer>

@@ -23,7 +23,7 @@ loaded from the service.
 The app requires Android 8.0 (API 26) or newer and does not trigger price
 collection.
 Use **Feature requests and bug reports** in settings to open the public
-[GitHub repository](https://github.com/hanscappelle/bandjes).
+[GitHub repository](https://github.com/hanscappelle/betyre).
 
 Choose a **Default tyre size** in settings to open the app on that size. If no
 default is selected, the app uses the service's first available size.

@@ -85,7 +85,7 @@ import java.util.Locale
 import androidx.compose.ui.graphics.toArgb
 
 internal const val DEFAULT_SERVICE_URL = "https://betyre.alwaysdata.net/service.php"
-private const val REPOSITORY_URL = "https://github.com/hanscappelle/bandjes"
+private const val REPOSITORY_URL = "https://github.com/hanscappelle/betyre"
 private val Accent = Color(0xFF176B55)
 private val ChartColors = listOf(
     Color(0xFF176B55),
