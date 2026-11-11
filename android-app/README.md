@@ -7,11 +7,9 @@ history.
 
 ## Run
 
-1. Deploy the `service-php` directory on a server with HTTPS enabled. The app
-   needs the updated `service.php` to load history for device-local favorites.
-2. Open `android-app` in Android Studio and let it sync the Gradle project.
-3. Run the `app` configuration on an Android device or emulator.
-4. On first launch, the app uses `https://betyre.alwaysdata.net/service.php`
+1. Open `android-app` in Android Studio and let it sync the Gradle project.
+2. Run the `app` configuration on an Android device or emulator.
+3. On first launch, the app uses `https://betyre.alwaysdata.net/service.php`
    and loads prices automatically. Use the settings button in the top bar to
    change the service URL; a saved custom URL takes precedence. Choose
    **Use default** beside the URL field to clear the custom URL and revert to
@@ -65,6 +63,5 @@ integrated terminal. Android Studio is optional; it can install SDK components
 and create emulators, but is not required for command-line builds.
 
 The endpoint must use HTTPS. The app intentionally does not enable cleartext
-HTTP traffic. For the private NAS CA setup, the app trusts the bundled CA only
-for `192.168.1.198`; other hosts continue to use Android's normal system
-certificate authorities.
+HTTP traffic. As an alternative to the public service endpoint you can also deploy the `dashboard-php-public/service-php` to your own server/setup and update the URL in app configuration. 
+
