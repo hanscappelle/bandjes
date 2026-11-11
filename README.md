@@ -21,6 +21,10 @@ Put a request here if you want more sizes or features. Or run the script locally
 
 ## Public price API
 
+```
+Use this as a datasource if you want to create your own dashboard or other apps.
+```
+
 The hosted read-only JSON API is available at
 [`https://betyre.alwaysdata.net/service.php`](https://betyre.alwaysdata.net/service.php).
 It supports unauthenticated `GET` requests and does not modify data. For
@@ -133,7 +137,10 @@ For the App there is local android system storage (preferences) used to keep the
 ```
 Warning !!
 
-Bandenleader is blocking after too many requests, still looking into this. For now this has been fixed with a delay, keep the delay between requests. 
+Bandenleader is blocking after too many requests, still looking into this. 
+For now this has been fixed with a delay, keep the delay between requests. 
+
+The following steps are optional in case you want to run any of this code locally.
 ```
 
 The standard-library Python script collects prices for one or more sizes from
@@ -168,9 +175,7 @@ collector first, then use a dashboard or app that reads from that store:
 | Remote PostgreSQL | [`collector/scrape_prices.py`](collector/README.md) publishes observations over HTTPS to `dashboard-php-public/collector.php`, which writes to PostgreSQL. | The [published dashboard](https://betyre.alwaysdata.net/?filter=&favorites_only=0&size=180%2F55R17&period=all) and [public PHP dashboard setup](dashboard-php-public/README.md) read PostgreSQL. |
 
 The [Android app](android-app/README.md) is a client of a PHP JSON service; it
-does not collect prices or connect directly to either database. Point it to
-[`service-php/service.php`](service-php/README.md) to read SQLite, or to
-`dashboard-php-public/service.php` to read PostgreSQL. Its default service URL
+does not collect prices or connect directly to either database. Point it to `dashboard-php-public/service.php` to read PostgreSQL. Its default service URL
 is the hosted PostgreSQL service. Android favorites are stored on the device.
 
 The Python and local PHP dashboards use SQLite; they do not read PostgreSQL.
