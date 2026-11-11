@@ -181,8 +181,7 @@ Download the debug APK for sideloading and testing:
 [Betyre Android APK](android-app/releases/betyre-1.0-debug.apk). See the
 [Android app README](android-app/README.md) for installation and build details.
 
-<img src="assets/betyre-android-app.png" alt="Betyre Android app running on a Pixel 9a" width="280">
-<img src="assets/betyre-android-current-screen.png" alt="Betyre Android app settings screen on a Pixel 9a" width="280">
+<img src="assets/betyre-android-app.png" alt="Betyre Android app running on a Pixel 9a" width="280"> <img src="assets/betyre-android-current-screen.png" alt="Betyre Android app settings screen on a Pixel 9a" width="280">
 
 The Python and local PHP dashboards use SQLite; they do not read PostgreSQL.
 Likewise, the PostgreSQL PHP dashboard does not read the SQLite file. The
