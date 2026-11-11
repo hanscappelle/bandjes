@@ -1132,7 +1132,14 @@ private fun FavoriteChart(history: List<TyrePrice>) {
             }
             Spacer(Modifier.height(8.dp))
             grouped.forEachIndexed { index, points ->
-                val first = points.first()
+                val sorted = points.sortedBy { parseDate(it.observedAt) }
+                val first = sorted.first()
+                val changeLabel = if (first.price > 0.0) {
+                    val change = (sorted.last().price - first.price) / first.price * 100.0
+                    String.format(Locale.getDefault(), " (%+.1f%%)", change)
+                } else {
+                    " (n/a)"
+                }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1141,7 +1148,7 @@ private fun FavoriteChart(history: List<TyrePrice>) {
                         drawCircle(ChartColors[index % ChartColors.size])
                     }
                     Text(
-                        first.name,
+                        first.name + changeLabel,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }

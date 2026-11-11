@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent
 DATABASE = Path(os.environ.get("TYRE_PRICE_DB", ROOT / "tyre_prices.sqlite3")).expanduser()
 
 st.set_page_config(
-    page_title="Motorcycle Tyre Price Watch",
+    page_title="Betyre Motorcycle Tyre Price Watch",
     page_icon="🏍️",
     layout="wide",
 )
@@ -197,7 +197,7 @@ def load_size_history(connection, size):
     return history[history["size"] == size]
 
 
-st.title("🏍️ Motorcycle Tyre Price Watch")
+st.title("🏍️ Betyre Motorcycle Tyre Price Watch")
 st.caption("Dashboard for daily price history collected from bandenleader.be website (no affiliation). This is just the visualisation of the database. To populate this schedule the script somewhere. You can manually trigger it here for testing purposes. Project details at https://github.com/hanscappelle/bandjes. Add favourites from the results below to show over time and in comparison with each other.")
 
 try:
@@ -494,8 +494,21 @@ chart_history = chart_history[
 if chart_history.empty:
     st.info("Mark tyres as favorites in the latest recorded prices table to compare their price history.")
 else:
+    ordered_chart_history = chart_history.sort_values("observed_at")
+    price_changes = ordered_chart_history.groupby("product_id")["price_eur"].agg(
+        first="first",
+        last="last",
+    )
+    chart_labels = {}
+    for product_id, prices in price_changes.iterrows():
+        change_label = (
+            f" ({(prices['last'] - prices['first']) / prices['first']:+.1%})"
+            if prices["first"] > 0
+            else " (n/a)"
+        )
+        chart_labels[product_id] = product_labels[product_id] + change_label
     chart_history = chart_history.assign(
-        tyre=chart_history["product_id"].map(product_labels)
+        tyre=chart_history["product_id"].map(chart_labels)
     )
     figure = px.line(
         chart_history,

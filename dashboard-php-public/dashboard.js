@@ -15,6 +15,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (filterFavoritesOnly && favoritesOnly) {
                     filterFavoritesOnly.value = favoritesOnly.checked ? '1' : '0';
                 }
+                window.history.replaceState(
+                    null,
+                    '',
+                    window.location.pathname + window.location.search
+                );
+                filtersForm.action = window.location.pathname;
                 filtersForm.submit();
             });
         });

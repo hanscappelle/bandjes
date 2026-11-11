@@ -268,7 +268,16 @@ function render_chart(array $history, array $favorites, string $period): string
         $colorIndex = $index % count($colors);
         $color = $colors[$colorIndex];
         $coordinates = [];
-        foreach ($entry['points'] as $point) {
+        $points = $entry['points'];
+        usort($points, static function (array $left, array $right): int {
+            return $left['time'] <=> $right['time'];
+        });
+        $firstPrice = $points[0]['price'];
+        $lastPrice = $points[count($points) - 1]['price'];
+        $changeLabel = $firstPrice > 0
+            ? sprintf(' (%+.1f%%)', ($lastPrice - $firstPrice) / $firstPrice * 100)
+            : ' (n/a)';
+        foreach ($points as $point) {
             $x = $left + (($point['time'] - $minTime) / ($maxTime - $minTime)) * $plotWidth;
             $y = $top + (($maxPrice - $point['price']) / ($maxPrice - $minPrice)) * $plotHeight;
             $coordinates[] = [$x, $y, $point];
@@ -288,7 +297,7 @@ function render_chart(array $history, array $favorites, string $period): string
         if (!empty($entry['url'])) {
             $productNumber = '<a href="' . h($entry['url']) . '" target="_blank" rel="noopener noreferrer">' . $productNumber . '</a>';
         }
-        $legend .= '<li><svg class="legend-swatch" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="' . h($color) . '"/></svg><span>' . h($entry['name']) . ' (' . $productNumber . ')</span></li>';
+        $legend .= '<li><svg class="legend-swatch" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="' . h($color) . '"/></svg><span>' . h($entry['name']) . ' (' . $productNumber . ')' . h($changeLabel) . '</span></li>';
         $index++;
     }
 
@@ -461,7 +470,7 @@ if ($latest) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Motorcycle Tyre Price Watch</title>
+    <title>Betyre Motorcycle Tyre Price Watch</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -470,7 +479,7 @@ if ($latest) {
         <div class="brand-mark" aria-hidden="true">🏍</div>
         <div>
             <p class="eyebrow">PERSONAL PRICE HISTORY</p>
-            <h1>Motorcycle Tyre Price Watch</h1>
+            <h1>Betyre Motorcycle Tyre Price Watch</h1>
             <p class="subtitle">Price history collected from bandenleader.be. This dashboard is not affiliated with the shop.</p>
         </div>
     </header>
@@ -620,7 +629,7 @@ if ($latest) {
     <?php endif; ?>
 
     <footer>
-        <span>Motorcycle Tyre Price Watch</span>
+        <span>Betyre Motorcycle Tyre Price Watch</span>
         <span>Collection is handled separately by the Python script.</span>
         <span>The database is read-only to this dashboard. Run <code>scrape_prices.py</code> separately or schedule it in DSM Task Scheduler.</span>
     </footer>

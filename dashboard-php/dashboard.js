@@ -5,6 +5,12 @@ document.addEventListener('DOMContentLoaded', function () {
     if (filtersForm) {
         filtersForm.querySelectorAll('select').forEach(function (select) {
             select.addEventListener('change', function () {
+                window.history.replaceState(
+                    null,
+                    '',
+                    window.location.pathname + window.location.search
+                );
+                filtersForm.action = window.location.pathname;
                 filtersForm.submit();
             });
         });

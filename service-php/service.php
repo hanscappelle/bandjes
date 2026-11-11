@@ -241,7 +241,7 @@ try {
     }
 
     respond([
-        'service' => 'bandjes-price-data',
+        'service' => 'betyre-price-data',
         'filters' => [
             'size' => $selectedSize !== '' ? $selectedSize : null,
             'period' => $period,

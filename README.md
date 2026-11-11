@@ -6,9 +6,9 @@ Scripts and Dashboard to collect tyres prices over time for a specific set of ty
 
 Public dashboard published at [https://betyre.alwaysdata.net/](https://betyre.alwaysdata.net/?filter=&favorites_only=0&size=180%2F55R17&period=all) 
 
-This is a visualisation of data collected by the owner of this repo using the collector scripts. These run twice a day and are set up to register for 5 common tyre sizes. 
+This is a visualisation of data collected by the owner of this repo using the collector scripts. These run twice a day and are set up to register for 5 common tyre sizes. Collecting data since November 2026.
 
-Put a request here if you want more sizes or features. Or run the script locally for your specific setup. 
+Put a request here if you want more sizes or features. Or run the script locally for your specific setup. You can also use the public, read-only API to build your own apps. 
 
 ## Table of contents
 
@@ -44,7 +44,7 @@ Query parameters are optional:
 
 The JSON response includes:
 
-- `service`: API identifier (`bandjes-price-data`).
+- `service`: API identifier (`betyre-price-data`).
 - `filters`: selected `size` and `period`.
 - `available_sizes`: objects with each available `size` and its `position`.
 - `summary`: `tyre_count`, `lowest_latest_price`, median latest price in EUR,
@@ -59,7 +59,7 @@ Example response (values are illustrative):
 
 ```json
 {
-  "service": "bandjes-price-data",
+  "service": "betyre-price-data",
   "filters": {
     "size": "90/90R21",
     "period": "90"
