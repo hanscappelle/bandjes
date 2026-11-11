@@ -177,6 +177,9 @@ collector first, then use a dashboard or app that reads from that store:
 The [Android app](android-app/README.md) is a client of a PHP JSON service; it
 does not collect prices or connect directly to either database. Point it to `dashboard-php-public/service.php` to read PostgreSQL. Its default service URL
 is the hosted PostgreSQL service. Android favorites are stored on the device.
+Download the debug APK for sideloading and testing:
+[Betyre Android APK](android-app/releases/betyre-1.0-debug.apk). See the
+[Android app README](android-app/README.md) for installation and build details.
 
 The Python and local PHP dashboards use SQLite; they do not read PostgreSQL.
 Likewise, the PostgreSQL PHP dashboard does not read the SQLite file. The

@@ -23,6 +23,13 @@ collection.
 Use **Feature requests and bug reports** in settings to open the public
 [GitHub repository](https://github.com/hanscappelle/betyre).
 
+## Download
+
+The repository includes a debug APK at
+[`releases/betyre-1.0-debug.apk`](releases/betyre-1.0-debug.apk). It is signed
+with the standard Android debug key and is intended for sideloading and testing,
+not for Google Play distribution.
+
 Choose a **Default tyre size** in settings to open the app on that size. If no
 default is selected, the app uses the service's first available size.
 Use the **Dark mode** switch in settings to enable the dark color scheme; the
@@ -64,4 +71,3 @@ and create emulators, but is not required for command-line builds.
 
 The endpoint must use HTTPS. The app intentionally does not enable cleartext
 HTTP traffic. As an alternative to the public service endpoint you can also deploy the `dashboard-php-public/service-php` to your own server/setup and update the URL in app configuration. 
-
