@@ -1,4 +1,4 @@
-package be.bandjes.app
+package be.betyre.app
 
 import android.Manifest
 import android.app.NotificationChannel
@@ -28,7 +28,7 @@ internal class PriceAlertWorker(
     params: WorkerParameters,
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result {
-        val preferences = applicationContext.getSharedPreferences("bandjes", Context.MODE_PRIVATE)
+        val preferences = applicationContext.getSharedPreferences("betyre", Context.MODE_PRIVATE)
         if (!preferences.getBoolean("price_alert_enabled", false)) return Result.success()
 
         val threshold = preferences.getFloat("price_alert_threshold", 5f).toDouble()
@@ -249,7 +249,7 @@ internal fun postTestPriceAlertNotification(context: Context): Boolean {
     val notification = NotificationCompat.Builder(context, "favorite_price_alerts")
         .setSmallIcon(android.R.drawable.ic_dialog_info)
         .setContentTitle("Test price alert")
-        .setContentText("Notifications are working for Bandjes price alerts.")
+        .setContentText("Notifications are working for betyre price alerts.")
         .setContentIntent(contentIntent)
         .setAutoCancel(true)
         .build()

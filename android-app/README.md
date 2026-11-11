@@ -1,4 +1,4 @@
-# Bandjes Android app
+# Betyre Android app
 
 A small Android Studio project that displays the data from the PHP JSON
 service: tyre-size and history-period filters, latest prices, collection

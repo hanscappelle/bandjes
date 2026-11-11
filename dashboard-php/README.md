@@ -24,7 +24,7 @@ SQLite query-only mode; price collection remains a separate Python task.
    example:
 
    ```text
-   /volume1/DATA/scripts/bandjes/
+   /volume1/pricewatch/
    ├── common_motorcycle_tyre_sizes.csv
    ├── tyre_prices.sqlite3
    └── dashboard-php/

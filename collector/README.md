@@ -21,9 +21,9 @@ database, then grant the writer role only the access it needs. For example,
 after substituting the actual role name:
 
 ```sql
-GRANT USAGE ON SCHEMA public TO bandjes_collector;
+GRANT USAGE ON SCHEMA public TO betyre_collector;
 GRANT SELECT, INSERT, UPDATE ON public.products, public.price_observations
-    TO bandjes_collector;
+    TO betyre_collector;
 ```
 
 On the NAS, store the endpoint and matching token in a private environment file,

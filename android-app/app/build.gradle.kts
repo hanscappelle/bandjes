@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "be.bandjes.app"
+    namespace = "be.betyre.app"
     compileSdk = 35
 
     compileOptions {
@@ -14,7 +14,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "be.bandjes.app"
+        applicationId = "be.betyre.app"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

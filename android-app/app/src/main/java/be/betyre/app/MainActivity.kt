@@ -1,4 +1,4 @@
-package be.bandjes.app
+package be.betyre.app
 
 import android.Manifest
 import android.content.ActivityNotFoundException
@@ -98,7 +98,7 @@ private val ChartColors = listOf(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val preferences = getSharedPreferences("bandjes", MODE_PRIVATE)
+        val preferences = getSharedPreferences("betyre", MODE_PRIVATE)
         preferences.edit().remove("encrypted_api_token").apply()
         val favoriteStore = FavoriteStore(preferences)
         val priceAlertsEnabled = preferences.getBoolean("price_alert_enabled", false)
@@ -822,7 +822,7 @@ private fun Dashboard(
     }
     if (showAlertStatus) {
         AlertStatusDialog(
-            preferences = context.getSharedPreferences("bandjes", android.content.Context.MODE_PRIVATE),
+            preferences = context.getSharedPreferences("betyre", android.content.Context.MODE_PRIVATE),
             onDismiss = { showAlertStatus = false },
         )
     }
@@ -842,7 +842,7 @@ private fun AlertStatusDialog(
         notificationMessage = if (granted && postTestPriceAlertNotification(context)) {
             "Test notification sent."
         } else {
-            "Notifications are not allowed for Bandjes."
+            "Notifications are not allowed for Betyre."
         }
     }
 
@@ -929,7 +929,7 @@ private fun AlertStatusDialog(
                         notificationMessage = if (postTestPriceAlertNotification(context)) {
                             "Test notification sent."
                         } else {
-                            "Notifications are not allowed for Bandjes."
+                            "Notifications are not allowed for Betyre."
                         }
                     }
                 },

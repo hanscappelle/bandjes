@@ -38,7 +38,7 @@ and use a separate writer role for `COLLECTOR_DATABASE_URL`.
 1. Configure the PHP service with either:
 
    - `DATABASE_URL`, a PostgreSQL URI such as
-     `postgresql://dashboard:password@db.example.com:5432/bandjes?sslmode=require`;
+     `postgresql://dashboard:password@db.example.com:5432/betyre?sslmode=require`;
      or
    - `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD`. `PGPORT` is
      optional and defaults to the PostgreSQL driver's default port.
