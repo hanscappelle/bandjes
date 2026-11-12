@@ -178,7 +178,7 @@ The [Android app](android-app/README.md) is a client of a PHP JSON service; it
 does not collect prices or connect directly to either database. Point it to `dashboard-php-public/service.php` to read PostgreSQL. Its default service URL
 is the hosted PostgreSQL service. Android favorites are stored on the device.
 Download the debug APK for sideloading and testing:
-[Betyre Android APK](android-app/releases/betyre-1.0-debug.apk). See the
+[Betyre Android APK](android-app/releases/betyre-1.0-debug-2026-11-12.apk). See the
 [Android app README](android-app/README.md) for installation and build details.
 
 <img src="assets/betyre-android-app.png" alt="Betyre Android app running on a Pixel 9a" width="280"> <img src="assets/betyre-android-current-screen.png" alt="Betyre Android app settings screen on a Pixel 9a" width="280">

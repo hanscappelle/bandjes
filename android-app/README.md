@@ -25,10 +25,12 @@ Use **Feature requests and bug reports** in settings to open the public
 
 ## Download
 
-The repository includes a debug APK at
-[`releases/betyre-1.0-debug.apk`](releases/betyre-1.0-debug.apk). It is signed
-with the standard Android debug key and is intended for sideloading and testing,
-not for Google Play distribution.
+The latest debug APK is
+[`releases/betyre-1.0-debug.apk`](releases/betyre-1.0-debug.apk). Dated APKs are
+kept in `releases` for version history; the November 12, 2026 build is
+[`releases/betyre-1.0-debug-2026-11-12.apk`](releases/betyre-1.0-debug-2026-11-12.apk).
+APKs are signed with the standard Android debug key and are intended for
+sideloading and testing, not for Google Play distribution.
 
 Choose a **Default tyre size** in settings to open the app on that size. If no
 default is selected, the app uses the service's first available size.
@@ -41,15 +43,16 @@ their price history use the app's local selections. Results are ordered by
 latest price, lowest first.
 
 In settings, enable **Notify on price drops** to schedule local alerts for
-favorite tyres. Changes to the percentage drop threshold and the frequency
-(once, twice, or four times per day) are saved automatically. The app compares
-each favorite's latest price with its price at the previous check; the first
-check establishes a baseline and does not alert.
+tyres. **Limit notifications to favourites** is on by default; turn it off to
+check all tyres instead. Changes to the percentage drop threshold and the
+frequency (once, twice, or four times per day) are saved automatically. The app
+compares each monitored tyre's latest price with its price at the previous
+check; the first check establishes a baseline and does not alert.
 Checks require network access, and Android may delay them for battery
 management, so they are not exact-time alarms. Android 13 and newer require
 notification permission. Open **Alert status** in settings to see the last
-check result and favorite price baselines, refresh that status, or send a test
-notification.
+check result and price baselines for monitored tyres, refresh that status, or
+send a test notification.
 
 ## Build requirements
 

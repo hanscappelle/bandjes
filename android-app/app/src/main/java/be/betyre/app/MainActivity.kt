@@ -155,6 +155,10 @@ class MainActivity : ComponentActivity() {
                     savedAlertEnabled = preferences.getBoolean("price_alert_enabled", false),
                     savedAlertThreshold = preferences.getFloat("price_alert_threshold", 5f),
                     savedAlertChecksPerDay = priceAlertChecksPerDay,
+                    savedAlertFavoritesOnly = preferences.getBoolean(
+                        KEY_ALERT_FAVORITES_ONLY,
+                        true,
+                    ),
                     savePriceAlertSettings = { enabled, threshold, checksPerDay ->
                         preferences.edit()
                             .putBoolean("price_alert_enabled", enabled)
@@ -162,6 +166,11 @@ class MainActivity : ComponentActivity() {
                             .putInt("price_alert_checks_per_day", checksPerDay)
                             .apply()
                         PriceAlertScheduler.configure(this, enabled, checksPerDay)
+                    },
+                    saveAlertFavoritesOnly = { favoritesOnly ->
+                        preferences.edit()
+                            .putBoolean(KEY_ALERT_FAVORITES_ONLY, favoritesOnly)
+                            .apply()
                     },
                     darkMode = darkMode,
                     saveDarkMode = {
@@ -352,7 +361,9 @@ private fun Dashboard(
     savedAlertEnabled: Boolean,
     savedAlertThreshold: Float,
     savedAlertChecksPerDay: Int,
+    savedAlertFavoritesOnly: Boolean,
     savePriceAlertSettings: (Boolean, Float, Int) -> Unit,
+    saveAlertFavoritesOnly: (Boolean) -> Unit,
     darkMode: Boolean,
     saveDarkMode: (Boolean) -> Unit,
 ) {
@@ -374,6 +385,7 @@ private fun Dashboard(
     var alertChecksPerDay by rememberSaveable {
         mutableStateOf(normalizePriceAlertChecksPerDay(savedAlertChecksPerDay).toString())
     }
+    var alertFavoritesOnly by rememberSaveable { mutableStateOf(savedAlertFavoritesOnly) }
     var alertSettingsMessage by remember { mutableStateOf<String?>(null) }
     var showAlertStatus by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
@@ -527,18 +539,11 @@ private fun Dashboard(
                         ) { newDefaultSize ->
                             defaultSize = newDefaultSize
                             saveDefaultSize(newDefaultSize)
-                            if (newDefaultSize.isBlank()) {
-                                selectedSize = availableSizes.first()
-                                refresh(null)
-                            } else {
-                                selectedSize = newDefaultSize
-                                refresh(newDefaultSize)
-                            }
                         }
                     }
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "Favorite price alerts",
+                        "Price alerts",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
@@ -576,10 +581,27 @@ private fun Dashboard(
                         )
                     }
                     Text(
-                        "Alert when a favorite's price drops by at least this percentage since the previous check.",
+                        if (alertFavoritesOnly) {
+                            "Alert when a favorite's price drops by at least this percentage since the previous check."
+                        } else {
+                            "Alert when any tyre's price drops by at least this percentage since the previous check."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Limit notifications to favourites", modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = alertFavoritesOnly,
+                            onCheckedChange = {
+                                alertFavoritesOnly = it
+                                saveAlertFavoritesOnly(it)
+                            },
+                        )
+                    }
                     OutlinedTextField(
                         value = alertThreshold,
                         onValueChange = {
@@ -631,13 +653,6 @@ private fun Dashboard(
                         )
                     }
                     Spacer(Modifier.height(8.dp))
-                    Button(
-                        onClick = { refresh() },
-                        enabled = !loading && endpoint.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(if (loading) "Loading…" else "Load prices")
-                    }
                     TextButton(
                         onClick = {
                             try {
@@ -797,12 +812,14 @@ private fun Dashboard(
                                 favoriteIds + tyre.productId
                             }
                             favoriteStore.write(selectedSize, updatedFavoriteIds)
-                            favoriteStore.setPriceBaseline(
-                                tyre.productId,
-                                if (tyre.favorite) null else tyre.price,
-                                name = tyre.name,
-                                size = tyre.size,
-                            )
+                            if (alertFavoritesOnly) {
+                                favoriteStore.setPriceBaseline(
+                                    tyre.productId,
+                                    if (tyre.favorite) null else tyre.price,
+                                    name = tyre.name,
+                                    size = tyre.size,
+                                )
+                            }
                             favoriteIds = updatedFavoriteIds
                             error = null
                         },
@@ -875,7 +892,11 @@ private fun AlertStatusDialog(
                 }
                 status.message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 Text(
-                    "Favorite price baselines",
+                    if (preferences.getBoolean(KEY_ALERT_FAVORITES_ONLY, true)) {
+                        "Favorite price baselines"
+                    } else {
+                        "All-tyre price baselines"
+                    },
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                 )

@@ -37,9 +37,10 @@ internal class PriceAlertWorker(
             return Result.failure()
         }
 
+        val limitToFavorites = preferences.getBoolean(KEY_ALERT_FAVORITES_ONLY, true)
         val favoritesBySize = FavoriteStore(preferences).allFavoritesBySize()
             .filterValues { it.isNotEmpty() }
-        if (favoritesBySize.isEmpty()) {
+        if (limitToFavorites && favoritesBySize.isEmpty()) {
             recordCheck(preferences, true, "No favorite tyres are selected.")
             return Result.success()
         }
@@ -48,10 +49,22 @@ internal class PriceAlertWorker(
             .ifBlank { DEFAULT_SERVICE_URL }
         val currentPrices = mutableMapOf<String, TyrePrice>()
         try {
-            favoritesBySize.forEach { (size, favoriteIds) ->
-                fetchDashboard(endpoint, size, "7").latestPrices
-                    .filter { it.productId in favoriteIds }
-                    .forEach { currentPrices[it.productId] = it }
+            if (limitToFavorites) {
+                favoritesBySize.forEach { (size, favoriteIds) ->
+                    fetchDashboard(endpoint, size, "7").latestPrices
+                        .filter { it.productId in favoriteIds }
+                        .forEach { currentPrices[it.productId] = it }
+                }
+            } else {
+                val allSizes = fetchDashboard(endpoint, null, "7")
+                allSizes.sizes.forEach { size ->
+                    val dashboard = if (size == allSizes.selectedSize) {
+                        allSizes
+                    } else {
+                        fetchDashboard(endpoint, size, "7")
+                    }
+                    dashboard.latestPrices.forEach { currentPrices[it.productId] = it }
+                }
             }
         } catch (exception: Exception) {
             if (exception is CancellationException) throw exception
@@ -85,11 +98,12 @@ internal class PriceAlertWorker(
             }
         }.apply()
 
-        if (drops.isNotEmpty()) showNotification(drops)
+        if (drops.isNotEmpty()) showNotification(drops, limitToFavorites)
         recordCheck(
             preferences,
             true,
-            "Checked ${currentPrices.size} favorite tyre(s); ${drops.size} met the drop threshold.",
+            "Checked ${currentPrices.size} ${if (limitToFavorites) "favorite " else ""}" +
+                "tyre(s); ${drops.size} met the drop threshold.",
         )
         return Result.success()
     }
@@ -106,7 +120,7 @@ internal class PriceAlertWorker(
             .apply()
     }
 
-    private fun showNotification(drops: List<PriceDrop>) {
+    private fun showNotification(drops: List<PriceDrop>, limitToFavorites: Boolean) {
         if (
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(
@@ -122,7 +136,7 @@ internal class PriceAlertWorker(
             manager.createNotificationChannel(
                 NotificationChannel(
                     CHANNEL_ID,
-                    "Favorite tyre price alerts",
+                    "Tyre price alerts",
                     NotificationManager.IMPORTANCE_DEFAULT,
                 ),
             )
@@ -142,8 +156,12 @@ internal class PriceAlertWorker(
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(
-                if (drops.size == 1) "Favorite tyre price dropped"
-                else "${drops.size} favorite tyre prices dropped",
+                when {
+                    limitToFavorites && drops.size == 1 -> "Favorite tyre price dropped"
+                    limitToFavorites -> "${drops.size} favorite tyre prices dropped"
+                    drops.size == 1 -> "Tyre price dropped"
+                    else -> "${drops.size} tyre prices dropped"
+                },
             )
             .setContentText(lines.first())
             .setStyle(NotificationCompat.InboxStyle().also { style ->
@@ -166,8 +184,9 @@ internal class PriceAlertWorker(
 internal const val KEY_LAST_CHECK_AT = "price_alert_last_check_at"
 internal const val KEY_LAST_CHECK_SUCCEEDED = "price_alert_last_check_succeeded"
 internal const val KEY_LAST_CHECK_MESSAGE = "price_alert_last_check_message"
+internal const val KEY_ALERT_FAVORITES_ONLY = "price_alert_favorites_only"
 
-internal data class FavoritePriceBaseline(
+internal data class PriceAlertBaseline(
     val productId: String,
     val name: String,
     val size: String,
@@ -178,33 +197,39 @@ internal data class PriceAlertStatus(
     val checkedAt: Long?,
     val succeeded: Boolean?,
     val message: String?,
-    val baselines: List<FavoritePriceBaseline>,
+    val baselines: List<PriceAlertBaseline>,
 )
 
 internal fun loadPriceAlertStatus(
     preferences: android.content.SharedPreferences,
 ): PriceAlertStatus {
-    val favoriteStore = FavoriteStore(preferences)
-    val baselines = favoriteStore.allFavoritesBySize().flatMap { (size, productIds) ->
-        productIds.mapNotNull { productId ->
-            val price = preferences.getString(
-                FavoriteStore.priceBaselineKey(productId),
-                null,
-            )?.toDoubleOrNull() ?: return@mapNotNull null
-            FavoritePriceBaseline(
-                productId = productId,
-                name = preferences.getString(
-                    FavoriteStore.priceBaselineNameKey(productId),
-                    "",
-                ).orEmpty().ifBlank { "Product $productId" },
-                size = preferences.getString(
-                    FavoriteStore.priceBaselineSizeKey(productId),
-                    size,
-                ).orEmpty(),
-                price = price,
-            )
-        }
-    }.sortedWith(compareBy(FavoritePriceBaseline::size, FavoritePriceBaseline::name))
+    val productSizes = if (preferences.getBoolean(KEY_ALERT_FAVORITES_ONLY, true)) {
+        FavoriteStore(preferences).allFavoritesBySize()
+            .flatMap { (size, productIds) -> productIds.map { it to size } }
+            .toMap()
+    } else {
+        preferences.all.keys
+            .filter { it.startsWith("alert_last_price:") }
+            .associate { key -> key.removePrefix("alert_last_price:") to "" }
+    }
+    val baselines = productSizes.mapNotNull { (productId, favoriteSize) ->
+        val price = preferences.getString(
+            FavoriteStore.priceBaselineKey(productId),
+            null,
+        )?.toDoubleOrNull() ?: return@mapNotNull null
+        PriceAlertBaseline(
+            productId = productId,
+            name = preferences.getString(
+                FavoriteStore.priceBaselineNameKey(productId),
+                "",
+            ).orEmpty().ifBlank { "Product $productId" },
+            size = preferences.getString(
+                FavoriteStore.priceBaselineSizeKey(productId),
+                favoriteSize,
+            ).orEmpty(),
+            price = price,
+        )
+    }.sortedWith(compareBy(PriceAlertBaseline::size, PriceAlertBaseline::name))
 
     return PriceAlertStatus(
         checkedAt = preferences.getLong(KEY_LAST_CHECK_AT, 0L).takeIf { it > 0L },
@@ -235,7 +260,7 @@ internal fun postTestPriceAlertNotification(context: Context): Boolean {
         manager.createNotificationChannel(
             NotificationChannel(
                 "favorite_price_alerts",
-                "Favorite tyre price alerts",
+                "Tyre price alerts",
                 NotificationManager.IMPORTANCE_DEFAULT,
             ),
         )
