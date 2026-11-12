@@ -27,7 +27,9 @@ Use **Feature requests and bug reports** in settings to open the public
 
 The latest debug APK is
 [`releases/betyre-1.0-debug.apk`](releases/betyre-1.0-debug.apk). Dated APKs are
-kept in `releases` for version history; the November 12, 2026 build is
+kept in `releases` for version history: the November 11, 2026 build is
+[`releases/betyre-1.0-debug-2026-11-11.apk`](releases/betyre-1.0-debug-2026-11-11.apk),
+and the November 12, 2026 build is
 [`releases/betyre-1.0-debug-2026-11-12.apk`](releases/betyre-1.0-debug-2026-11-12.apk).
 APKs are signed with the standard Android debug key and are intended for
 sideloading and testing, not for Google Play distribution.
